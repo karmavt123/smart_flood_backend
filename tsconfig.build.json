@@ -1,0 +1,11 @@
+{
+  // Dùng cho `npm run build`: dịch src/ sang JavaScript trong dist/ để chạy trên máy chủ.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true
+  },
+  "include": ["src"]
+}

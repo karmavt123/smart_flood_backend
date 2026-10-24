@@ -1,0 +1,8 @@
+# QUYỀN TRÊN MQTT — ai được đọc/ghi topic nào.
+# Gateway LoRa: chỉ được GHI dữ liệu node.  Backend: chỉ được ĐỌC dữ liệu node.
+
+user smartflood-gateway
+topic write smartflood/nodes/+/data
+
+user smartflood-backend
+topic read smartflood/nodes/+/data

@@ -1,0 +1,42 @@
+import 'dotenv/config';
+
+/** Đọc 1 biến môi trường dạng chữ (đã bỏ khoảng trắng 2 đầu); không có thì lấy giá trị mặc định. */
+function readText(name: string, fallback = ''): string {
+  return (process.env[name] ?? fallback).trim();
+}
+
+/** Đọc 1 biến môi trường dạng số; để trống thì lấy mặc định, ghi sai thì báo lỗi ngay khi khởi động. */
+function readNumber(name: string, fallback: number): number {
+  const raw = readText(name);
+  if (raw === '') return fallback;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) throw new Error(`Biến môi trường ${name} phải là số, đang là "${raw}"`);
+  return value;
+}
+
+/**
+ * TOÀN BỘ CẤU HÌNH của backend, đọc từ file .env (xem .env.example để biết ý nghĩa từng biến).
+ * Code chỗ khác chỉ đọc từ đây, không đọc process.env trực tiếp.
+ */
+export const appConfig = {
+  isProduction: process.env.NODE_ENV === 'production',
+  port: readNumber('PORT', 3000),
+
+  databaseUrl: readText('DATABASE_URL'),
+  embeddedDbDir: readText('EMBEDDED_DB_DIR', './data/pglite'),
+
+  mqttUrl: readText('MQTT_URL'),
+  mqttUsername: readText('MQTT_USERNAME'),
+  mqttPassword: readText('MQTT_PASSWORD'),
+  mqttTopic: readText('MQTT_TOPIC', 'smartflood/nodes/+/data'),
+  embeddedMqttHost: readText('EMBEDDED_MQTT_HOST', '127.0.0.1'),
+  embeddedMqttPort: readNumber('EMBEDDED_MQTT_PORT', 1883),
+
+  adminApiKey: readText('ADMIN_API_KEY'),
+
+  osrmUrl: readText('OSRM_URL', 'https://router.project-osrm.org').replace(/\/+$/, ''),
+  overpassUrl: readText('OVERPASS_URL', 'https://overpass-api.de/api/interpreter'),
+
+  corsOrigin: readText('CORS_ORIGIN', '*'),
+  trustProxy: readText('TRUST_PROXY') === 'true',
+};

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartFlood – Quản trị node</title>
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <!--
+    TRANG ADMIN: xem tình trạng các node, sửa vị trí/ngưỡng, xem tin nhắn bị từ chối, gửi thử tin nhắn.
+    Chỉ gọi API /api/v1/admin/* bằng khóa admin. Toàn bộ code nằm trong admin.js.
+  -->
+  <header class="topbar">
+    <h1>SmartFlood · Quản trị node</h1>
+    <div id="status" class="status"></div>
+    <button id="logout" class="ghost" hidden>Đổi khóa</button>
+  </header>
+
+  <main>
+    <section id="login" class="card narrow" hidden>
+      <h2>Nhập khóa admin</h2>
+      <p class="muted">Khóa là giá trị <code>ADMIN_API_KEY</code> trong file <code>.env</code> của máy chủ. Chạy thử trên laptop: <code>dev-admin-key</code>.</p>
+      <form id="login-form" class="row">
+        <input id="key-input" type="password" placeholder="Khóa admin" autocomplete="current-password" required />
+        <button type="submit">Vào</button>
+      </form>
+      <p id="login-error" class="error"></p>
+    </section>
+
+    <div id="app" hidden>
+      <nav class="tabs">
+        <button data-tab="nodes" class="tab active">Các node</button>
+        <button data-tab="errors" class="tab">Tin nhắn lỗi <span id="error-count" class="badge"></span></button>
+        <button data-tab="tools" class="tab">Gửi thử · Thêm node</button>
+      </nav>
+
+      <section data-panel="nodes">
+        <div class="card">
+          <div class="card-head">
+            <h2>Các node</h2>
+            <span class="muted" id="nodes-updated"></span>
+          </div>
+          <div class="table-wrap"><table id="nodes-table"></table></div>
+        </div>
+        <div id="node-detail"></div>
+      </section>
+
+      <section data-panel="errors" hidden>
+        <div class="card">
+          <div class="card-head">
+            <h2>Tin nhắn bị từ chối</h2>
+            <span class="muted">100 tin gần nhất · tự cập nhật mỗi 10 giây</span>
+          </div>
+          <div class="table-wrap"><table id="errors-table"></table></div>
+        </div>
+      </section>
+
+      <section data-panel="tools" hidden>
+        <div class="grid2">
+          <div class="card">
+            <h2>Gửi thử 1 tin nhắn</h2>
+            <p class="muted">Xử lý y như tin nhắn MQTT thật (lưu vào DB, app thấy ngay). Dùng để kiểm tra định dạng JSON trước khi nối gateway.</p>
+            <textarea id="test-message" rows="16" spellcheck="false"></textarea>
+            <div class="row"><button id="send-test">Gửi</button><button id="fill-now" class="ghost">Đặt giờ đo = bây giờ</button></div>
+            <pre id="test-result" class="result"></pre>
+          </div>
+          <div class="card">
+            <h2>Thêm node mới</h2>
+            <p class="muted">Không bắt buộc: node lạ gửi dữ liệu lần đầu sẽ tự được tạo, sau đó vào "Sửa" để điền vị trí.</p>
+            <form id="create-form" class="form"></form>
+            <pre id="create-result" class="result"></pre>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+{
+  "name": "smartflood-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend SmartFlood: nhận dữ liệu node qua MQTT, lưu PostgreSQL, cung cấp API cho app và trang admin",
+  "type": "module",
+  "engines": {
+    "node": "^22.13.0 || ^24.3.0 || >=26.0.0"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "fake-node": "tsx scripts/fakeNodePublisher.ts",
+    "import": "tsx scripts/importReadings.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "aedes": "1.1.2",
+    "cors": "2.8.5",
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "mqtt": "5.16.0",
+    "pg": "8.23.1",
+    "socket.io": "4.8.4",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/cors": "2.8.19",
+    "@types/express": "5.0.6",
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15",
+    "typescript": "~6.0.3"
+  }
+}

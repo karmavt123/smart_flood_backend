@@ -1,0 +1,4 @@
+node_id,measured_at,flood_depth_cm,rain_mm_1h,tide_cm,temperature_c,humidity_pct,light_lux,battery_pct,prediction.depth_cm,prediction.horizon_min,model.version,model.intercept,model.coef.H,model.coef.V,model.coef.T,model.coef.RH,model.coef.L
+ND-Q7-02,2026-10-20 14:00:00,0,0,110,30.1,74,21000,90,,,1,0.15,0.985,4.8,0.002,0.001,-0.00001
+ND-Q7-02,2026-10-20 14:05:00,3.1,14.0,112,29.0,88,6000,90,5.2,5,1,0.15,0.985,4.8,0.002,0.001,-0.00001
+ND-Q7-02,2026-10-20 14:10:00,8.4,33.5,113,28.2,94,2500,89,12.0,5,1,0.15,0.985,4.8,0.002,0.001,-0.00001

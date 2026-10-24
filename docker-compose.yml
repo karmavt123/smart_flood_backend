@@ -1,0 +1,71 @@
+# =====================================================================
+# CHẠY BACKEND TRÊN MÁY CHỦ: 3 phần chạy cùng nhau
+#   postgres  - cơ sở dữ liệu
+#   mosquitto - broker MQTT, gateway LoRa gửi dữ liệu vào đây (cổng 1883)
+#   api       - backend SmartFlood (cổng 3000): API cho app + trang /admin + realtime
+#
+# Cách chạy:  cp .env.production.example .env  → sửa mật khẩu trong .env  → docker compose up -d --build
+# Xem log:    docker compose logs -f api
+# =====================================================================
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartflood
+      POSTGRES_USER: smartflood
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Chưa đặt POSTGRES_PASSWORD trong .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartflood -d smartflood"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    environment:
+      MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD:?Chưa đặt MQTT_BACKEND_PASSWORD trong .env}
+      MQTT_GATEWAY_PASSWORD: ${MQTT_GATEWAY_PASSWORD:?Chưa đặt MQTT_GATEWAY_PASSWORD trong .env}
+    # Mỗi lần khởi động: tạo lại file mật khẩu từ .env cho 2 tài khoản (backend chỉ được đọc, gateway chỉ được ghi — xem mosquitto/acl).
+    command: >
+      sh -c 'mosquitto_passwd -c -b /mosquitto/data/passwd smartflood-backend "$$MQTT_BACKEND_PASSWORD" &&
+             mosquitto_passwd -b /mosquitto/data/passwd smartflood-gateway "$$MQTT_GATEWAY_PASSWORD" &&
+             chown mosquitto:mosquitto /mosquitto/data/passwd && chmod 0700 /mosquitto/data/passwd &&
+             exec mosquitto -c /mosquitto/config/mosquitto.conf'
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+      - mosquitto-data:/mosquitto/data
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://smartflood:${POSTGRES_PASSWORD}@postgres:5432/smartflood
+      MQTT_URL: mqtt://mosquitto:1883
+      MQTT_USERNAME: smartflood-backend
+      MQTT_PASSWORD: ${MQTT_BACKEND_PASSWORD}
+      MQTT_TOPIC: smartflood/nodes/+/data
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Chưa đặt ADMIN_API_KEY trong .env}
+      OSRM_URL: ${OSRM_URL:-https://router.project-osrm.org}
+      OVERPASS_URL: ${OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - "${API_PORT:-3000}:3000"
+
+volumes:
+  postgres-data:
+  mosquitto-data:

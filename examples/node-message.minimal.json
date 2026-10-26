@@ -1,6 +1,6 @@
 {
-  "node_id": "ND-Q1-01",
-  "flood_depth_cm": 0,
-  "rain_mm_1h": 0,
-  "tide_cm": 120
+  "id": "A01",
+  "water_level_mm": 0,
+  "rain_mm": 0,
+  "tide_m": 1.2
 }

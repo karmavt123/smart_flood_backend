@@ -7,7 +7,7 @@ const bodySchema = z.object({ messages: z.array(z.unknown()).min(1).max(5000) })
 
 /**
  * POST /api/v1/admin/import  body: { "messages": [ {...}, {...} ] }  (tối đa 5000 tin mỗi lần)
- * NHẬP DỮ LIỆU CŨ bên IoT đưa (cùng định dạng tin nhắn MQTT, nhưng BẮT BUỘC có measured_at).
+ * NHẬP DỮ LIỆU CŨ bên IoT đưa (cùng định dạng tin nhắn MQTT, nhưng BẮT BUỘC có ngày + giờ đo: date + time, hoặc measured_at).
  * Script `npm run import -- file.json` gọi API này và tự chia nhỏ file lớn.
  */
 export const postImportReadings: RequestHandler = async (request, response) => {

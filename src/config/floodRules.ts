@@ -39,6 +39,16 @@ export const SLOW_WITHIN_INTERVALS = 6;
 /** Giờ thiết bị chạy nhanh hơn giờ máy chủ quá 5 phút thì coi là sai, dùng giờ máy chủ. */
 export const DEVICE_CLOCK_MAX_AHEAD_SEC = 300;
 
+/**
+ * Node chỉ gửi GIỜ ("14:05:30", không có ngày) thì máy chủ tự ghép ngày hôm nay (giờ Việt Nam).
+ * Vì phải đoán ngày, nếu giờ đó chậm hơn giờ máy chủ quá 15 phút thì coi là đồng hồ node sai
+ * (vd node mới bật, đồng hồ về 00:00:00) và dùng giờ máy chủ — để không lưu nhầm ngày hoặc mất tin.
+ */
+export const DEVICE_CLOCK_ONLY_MAX_BEHIND_SEC = 900;
+
+/** Việt Nam là UTC+7, không đổi giờ theo mùa. */
+export const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
+
 /** Kiểm tra tuyến: cộng thêm vùng đệm an toàn 50 m quanh vùng ảnh hưởng. */
 export const ROUTE_SAFETY_BUFFER_M = 50;
 

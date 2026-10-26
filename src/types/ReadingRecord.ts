@@ -5,7 +5,9 @@ export interface ReadingRecord {
   received_at: Date | string;
   time_source: 'device' | 'server';
   flood_depth_cm: number;
-  rain_mm_1h: number;
+  rain_mm: number | null;
+  rain_rate_mm_h: number | null;
+  rain_mm_1h: number | null;
   tide_cm: number;
   temperature_c: number | null;
   humidity_pct: number | null;

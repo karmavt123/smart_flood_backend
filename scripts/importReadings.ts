@@ -4,7 +4,7 @@
  *   npm run import -- duong-dan/du-lieu.json
  *   npm run import -- du-lieu.csv --api https://api.smartflood.vn --key <ADMIN_API_KEY>
  *
- * Nhận 3 kiểu file, mỗi tin nhắn đúng định dạng trong IOT_DATA_FORMAT.md (BẮT BUỘC có measured_at):
+ * Nhận 3 kiểu file, mỗi tin nhắn đúng định dạng trong IOT_DATA_FORMAT.md (BẮT BUỘC có ngày + giờ đo: date + time, hoặc measured_at):
  *   .json   mảng [ {...}, {...} ]  hoặc  { "messages": [ ... ] }
  *   .jsonl  mỗi dòng 1 object JSON
  *   .csv    dòng đầu là tên cột; cột lồng nhau viết bằng dấu chấm, vd prediction.depth_cm, model.coef.H

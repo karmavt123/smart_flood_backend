@@ -8,7 +8,7 @@ Viết mới hoàn toàn, **tách riêng khỏi backend của web smartflood.vn 
 2. **Cung cấp API cho app** (không cần đăng nhập): danh sách trạm, lịch sử, công thức từng node, tình hình ngập quanh vị trí người dùng, kiểm tra tuyến đường, cập nhật realtime.
 3. **Trang admin** `/admin` để xem và quản lý node.
 
-> **Bên IoT:** định dạng dữ liệu node phải gửi nằm ở **[IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md)**.
+> **Bên IoT:** định dạng dữ liệu node phải gửi nằm ở **[IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md)** (bản 2.0, theo gói tin thật của trạm A01, A02).
 > **Anh mentor deploy:** đọc **mục 3**.
 
 ---
@@ -89,6 +89,7 @@ npm run dev
 
 ```
 [db] Đã chạy 001_create_tables.sql
+[db] Đã chạy 002_iot_packet_v2.sql
 [db] Đang dùng PostgreSQL nhúng (./data/pglite)
 [http] API:   http://localhost:3000/api/v1/stations
 [http] Admin: http://localhost:3000/admin
@@ -106,7 +107,7 @@ Mở **terminal thứ 2** (cũng ở thư mục backend):
 npm run fake-node
 ```
 
-Lệnh này tạo 4 node thử `TEST-01` … `TEST-04` quanh ĐH Bách Khoa, cứ 5 giây gửi 1 lần. Có 1 "cơn mưa giả" kéo dài 10 phút nên mực nước sẽ lên rồi xuống. `TEST-04` cố ý đặt **xa hơn 2 km**, để thấy nó nằm ngoài vòng "Quanh bạn".
+Lệnh này tạo 2 node thử `TEST-A01` (chỗ trũng, dễ ngập) và `TEST-A02` quanh ĐH Bách Khoa, cứ 5 giây gửi 1 lần, **đúng kiểu gói tin bên IoT** (`water_level_mm`, `rain_mm`, `rain_rate_mm_s`, `tide_m`, `temperature_c`, giờ `hh:mm:ss`). Có 1 "cơn mưa giả" kéo dài 10 phút nên mực nước sẽ lên rồi xuống (đợi khoảng 2–3 phút mới thấy ngập). Thêm `--with-model` nếu muốn node thử gửi kèm dự đoán + công thức.
 
 **Muốn node thử nằm quanh chỗ mình đang ngồi** (để màn "Quanh bạn" của app có dữ liệu): lấy tọa độ trên Google Maps (chuột phải lên bản đồ → bấm dòng số đầu tiên để chép), rồi chạy:
 
@@ -165,7 +166,7 @@ Mở `http://<IP-máy-chủ>:3000/admin` và nhập `ADMIN_API_KEY` trong `.env`
 
 ### Cấu hình gateway LoRa
 
-Đưa bên IoT: địa chỉ máy chủ, cổng `1883`, tài khoản `smartflood-gateway`, mật khẩu `MQTT_GATEWAY_PASSWORD`, topic `smartflood/nodes/<node_id>/data`. Chi tiết ở [IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md).
+Đưa bên IoT: địa chỉ máy chủ, cổng `1883`, tài khoản `smartflood-gateway`, mật khẩu `MQTT_GATEWAY_PASSWORD`, topic `smartflood/nodes/<id>/data` (vd `smartflood/nodes/A01/data`). Chi tiết ở [IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md).
 
 ### Nên làm thêm (khuyên mạnh)
 
@@ -224,13 +225,15 @@ Một trạm (`/stations`) trông như sau:
   "expectedIntervalSec": 300, "isActive": true,
   "connectionState": "online", "lastSeenAt": "2026-10-25T07:05:02.000Z",
   "floodLevel": "warning", "isFloodInfoUsable": true, "influenceRadiusM": 100, "predictedLevel": "warning",
-  "latest": { "measuredAt": "...", "floodDepthCm": 12.5, "rainMm1h": 18.2, "tideCm": 135, "temperatureC": 29.4,
-              "humidityPct": 86, "lightLux": 1200, "batteryPct": 78, "rssiDbm": -97,
-              "predictedDepthCm": 15.1, "forecastMinutes": 5, "modelVersion": 1, "timeSource": "device", "source": "mqtt", "extra": {} },
-  "model": { "version": 1, "intercept": 0.15, "coefficients": { "H": 0.985, "V": 4.8, "T": 0.002, "RH": 0.001, "L": -0.00001 },
-             "horizonMinutes": 5, "samples": 0, "maeCm": 0.344, "rmseCm": 0.439, "r2": 0.995, "trainedAt": "...", "firstSeenAt": "..." }
+  "latest": { "measuredAt": "...", "floodDepthCm": 12.5, "rainMm": 12.5, "rainRateMmH": 14.4, "rainMm1h": null,
+              "tideCm": 135, "temperatureC": 29.4, "humidityPct": null, "lightLux": null, "batteryPct": null, "rssiDbm": null,
+              "predictedDepthCm": null, "forecastMinutes": null, "modelVersion": null,
+              "timeSource": "device", "source": "mqtt", "extra": { "device_time": "14:05:30", "date_from_server": true } },
+  "model": null
 }
 ```
+
+Đây là trạm A01 gửi gói tin `{"id":"A01","time":"14:05:30","water_level_mm":125,"rain_mm":12.5,"rain_rate_mm_s":0.004,"tide_m":1.35,"temperature_c":29.4}`. Máy chủ đã đổi đơn vị: `floodDepthCm` = mm ÷ 10, `tideCm` = m × 100 (app hiển thị lại theo m), `rainRateMmH` = mm/s × 3600. `null` = node không gửi; `model: null` = node chưa gửi công thức.
 
 ### Admin (header `x-admin-key: <ADMIN_API_KEY>`)
 
@@ -247,14 +250,15 @@ Một trạm (`/stations`) trông như sau:
 
 ## 5. Cơ sở dữ liệu
 
-File tạo bảng: [`sql/001_create_tables.sql`](sql/001_create_tables.sql). Mỗi cột đều có chú thích tiếng Việt trong file.
+File tạo bảng: [`sql/001_create_tables.sql`](sql/001_create_tables.sql), thêm cột cho gói tin bên IoT: [`sql/002_iot_packet_v2.sql`](sql/002_iot_packet_v2.sql). Mỗi cột đều có chú thích tiếng Việt trong file.
 
 ```
 nodes (1 dòng = 1 thiết bị)               readings (1 dòng = 1 lần đo)
 ─────────────────────────────            ──────────────────────────────────────
 id  (PK, vd "ND-Q1-01")  ◀───────┬────── node_id (FK)
 name, address                     │       measured_at, received_at, time_source
-latitude, longitude               │       flood_depth_cm, rain_mm_1h, tide_cm      ← 3 trường bắt buộc
+latitude, longitude               │       flood_depth_cm, tide_cm                  ← bắt buộc
+                                  │       rain_mm, rain_rate_mm_h, rain_mm_1h      ← bắt buộc ít nhất 1
 warning_cm, danger_cm, critical_cm│       temperature_c, humidity_pct, light_lux
 expected_interval_sec             │       battery_pct, rssi_dbm
 is_active, last_message_at        │       predicted_depth_cm, forecast_minutes, model_version
@@ -296,7 +300,8 @@ Tất cả nằm ở [`src/config/floodRules.ts`](src/config/floodRules.ts). Mu�
 | **Đường ngập** (màn "Quanh bạn") | Lấy các con đường từ OpenStreetMap trong vùng ảnh hưởng, cắt đúng theo vòng tròn, tô theo mức ngập. Nhớ tạm 12 giờ |
 | **"Quanh bạn"** kết luận | Có node ngập trong 2 km → *Có ngập gần bạn* · không có, nhưng có node đang hoạt động → *Chưa ghi nhận ngập* · không có node nào hoạt động → *Chưa đủ dữ liệu* (**không bao giờ** nói "an toàn" khi thiếu dữ liệu) |
 | **Kiểm tra tuyến** | Vùng tránh = vùng ảnh hưởng + 50 m đệm; hỏi OSRM 1 lần lấy tối đa 4 tuyến, không có tuyến sạch thì thử đi vòng 2 bên vùng ngập (thêm 2 lần) |
-| **Giờ đo** | Giờ thiết bị nếu hợp lệ; thiếu hoặc sai (nhanh hơn 5 phút, năm 1970...) thì dùng giờ máy chủ và ghi lại để bên IoT sửa |
+| **Đổi đơn vị** gói tin bên IoT | `water_level_mm` ÷ 10 → cm · `tide_m` × 100 → cm · `rain_rate_mm_s` × 3600 → mm/giờ · `rain_mm` giữ nguyên |
+| **Giờ đo** | Node chỉ gửi giờ (`"14:05:30"`) → ghép ngày hôm nay theo giờ VN (gần nửa đêm thì lùi về hôm qua). Giờ node nhanh hơn 5 phút hoặc chậm hơn 15 phút, hay thiếu giờ → dùng giờ máy chủ và ghi lại để bên IoT sửa |
 
 ---
 
@@ -306,163 +311,168 @@ Quy ước giống app: **mỗi file làm đúng 1 việc, tên file nói luôn 
 
 ```
 smartflood-backend/
-├── .dockerignore                            # Những file không chép vào image Docker
-├── .env.example                             # Mẫu cấu hình khi chạy thử trên laptop
-├── .env.production.example                  # Mẫu cấu hình máy chủ (mật khẩu DB, MQTT, khóa admin)
-├── .gitignore                               # Những file KHÔNG đưa lên Git (.env, node_modules, data/)
-├── .nvmrc                                   # Phiên bản Node cần dùng: 24
-├── Dockerfile                               # Đóng gói backend thành image Docker
-├── IOT_DATA_FORMAT.md                       # ★ Đặc tả JSON node gửi lên — đưa cho bên IoT
-├── README.md                                # Bạn đang đọc file này
-├── docker-compose.yml                       # ★ Chạy trên máy chủ: PostgreSQL + Mosquitto + backend
-├── package-lock.json                        # Khóa đúng phiên bản thư viện (tự tạo, không sửa)
-├── package.json                             # Danh sách thư viện + lệnh chạy (npm run dev...)
-├── tsconfig.build.json                      # Cấu hình dịch TypeScript → dist/ để chạy trên máy chủ
-├── tsconfig.json                            # Cấu hình TypeScript (kiểm tra lỗi kiểu)
+├── .dockerignore                             # Những file không chép vào image Docker
+├── .env.example                              # Mẫu cấu hình khi chạy thử trên laptop
+├── .env.production.example                   # Mẫu cấu hình máy chủ (mật khẩu DB, MQTT, khóa admin)
+├── .gitignore                                # Những file KHÔNG đưa lên Git (.env, node_modules, data/)
+├── .nvmrc                                    # Phiên bản Node cần dùng: 24
+├── Dockerfile                                # Đóng gói backend thành image Docker
+├── IOT_DATA_FORMAT.md                        # ★ Đặc tả JSON node gửi lên — đưa cho bên IoT
+├── README.md                                 # Bạn đang đọc file này
+├── docker-compose.yml                        # ★ Chạy trên máy chủ: PostgreSQL + Mosquitto + backend
+├── package-lock.json                         # Khóa đúng phiên bản thư viện (tự tạo, không sửa)
+├── package.json                              # Danh sách thư viện + lệnh chạy (npm run dev...)
+├── tsconfig.build.json                       # Cấu hình dịch TypeScript → dist/ để chạy trên máy chủ
+├── tsconfig.json                             # Cấu hình TypeScript (kiểm tra lỗi kiểu)
 ├── examples/
-│   ├── import-sample.csv                    # Ví dụ file CSV để nhập dữ liệu cũ
-│   ├── import-sample.json                   # Ví dụ file JSON để nhập dữ liệu cũ
-│   ├── node-message.example.json            # Ví dụ 1 tin nhắn đầy đủ node gửi lên
-│   └── node-message.minimal.json            # Ví dụ tin nhắn tối thiểu (3 trường bắt buộc)
+│   ├── import-sample.csv                     # Ví dụ file CSV để nhập dữ liệu cũ
+│   ├── import-sample.json                    # Ví dụ file JSON để nhập dữ liệu cũ
+│   ├── node-message.example.json             # ★ Ví dụ đúng gói tin bên IoT gửi (trạm A01)
+│   ├── node-message.minimal.json             # Ví dụ tin nhắn tối thiểu (ngập + mưa + triều)
+│   └── node-message.old-format.example.json  # Ví dụ tin nhắn kiểu cũ (bản 1.0) — vẫn nhận
 ├── mosquitto/
-│   ├── acl                                  # Quyền MQTT: gateway chỉ ghi, backend chỉ đọc
-│   └── mosquitto.conf                       # Cấu hình broker MQTT (bắt buộc đăng nhập)
+│   ├── acl                                   # Quyền MQTT: gateway chỉ ghi, backend chỉ đọc
+│   └── mosquitto.conf                        # Cấu hình broker MQTT (bắt buộc đăng nhập)
 ├── public/
 │   └── admin/
-│       ├── admin.css                        # Trang admin: màu sắc, bố cục
-│       ├── admin.js                         # ★ Trang admin: xem node, sửa vị trí/ngưỡng, tin nhắn lỗi, gửi thử
-│       └── index.html                       # Trang admin: khung giao diện
+│       ├── admin.css                         # Trang admin: màu sắc, bố cục
+│       ├── admin.js                          # ★ Trang admin: xem node, sửa vị trí/ngưỡng, tin nhắn lỗi, gửi thử
+│       └── index.html                        # Trang admin: khung giao diện
 ├── scripts/
-│   ├── fakeNodePublisher.ts                 # GIẢ LẬP 4 NODE gửi dữ liệu thử qua MQTT (npm run fake-node)
-│   └── importReadings.ts                    # NHẬP DỮ LIỆU CŨ từ file .json/.jsonl/.csv (npm run import)
+│   ├── fakeNodePublisher.ts                  # GIẢ LẬP 2 NODE TEST-A01, TEST-A02 gửi đúng kiểu gói tin IoT (npm run fake-node)
+│   └── importReadings.ts                     # NHẬP DỮ LIỆU CŨ từ file .json/.jsonl/.csv (npm run import)
 ├── sql/
-│   └── 001_create_tables.sql                # ★ Tạo 4 bảng: nodes, readings, node_models, ingest_errors
+│   ├── 001_create_tables.sql                 # ★ Tạo 4 bảng: nodes, readings, node_models, ingest_errors
+│   └── 002_iot_packet_v2.sql                 # Thêm cột lượng mưa + cường độ mưa cho gói tin bên IoT (26/10)
 └── src/
     ├── config/
-    │   ├── appConfig.ts                     # Toàn bộ cấu hình, đọc từ file .env
-    │   ├── floodRules.ts                    # Ngưỡng mặc định khi node mới xuất hiện (cm nước trên mặt đường). Admin sửa riêng từng...
-    │   └── resolveAdminKey.ts               # Lấy khóa admin; máy chủ thật bắt buộc khóa ≥ 16 ký tự
+    │   ├── appConfig.ts                      # Toàn bộ cấu hình, đọc từ file .env
+    │   ├── floodRules.ts                     # Ngưỡng mặc định khi node mới xuất hiện (cm nước trên mặt đường). Admin sửa riêng từng...
+    │   └── resolveAdminKey.ts                # Lấy khóa admin; máy chủ thật bắt buộc khóa ≥ 16 ký tự
     ├── db/
-    │   ├── Database.ts                      # "Ổ CẮM" CƠ SỞ DỮ LIỆU — backend chỉ dùng 3 hàm này, nên chạy được với 2 loại DB:
-    │   ├── connectPostgres.ts               # Kết nối tới PostgreSQL thật bằng chuỗi DATABASE_URL (dùng trên máy chủ).
-    │   ├── createDatabase.ts                # Chọn loại DB: có DATABASE_URL → PostgreSQL thật; để trống → PostgreSQL nhúng để chạy...
-    │   ├── openEmbeddedDatabase.ts          # Mở PostgreSQL NHÚNG (PGlite) — chạy ngay trong backend, KHÔNG cần cài PostgreSQL.
-    │   ├── runMigrations.ts                 # Tạo/cập nhật bảng khi khởi động (chạy các file sql/ chưa chạy)
-    │   └── sharedDatabase.ts                # Giữ 1 kết nối DB dùng chung cho cả backend: db().query(...)
+    │   ├── Database.ts                       # "Ổ CẮM" CƠ SỞ DỮ LIỆU — backend chỉ dùng 3 hàm này, nên chạy được với 2 loại DB:
+    │   ├── connectPostgres.ts                # Kết nối tới PostgreSQL thật bằng chuỗi DATABASE_URL (dùng trên máy chủ).
+    │   ├── createDatabase.ts                 # Chọn loại DB: có DATABASE_URL → PostgreSQL thật; để trống → PostgreSQL nhúng để chạy...
+    │   ├── openEmbeddedDatabase.ts           # Mở PostgreSQL NHÚNG (PGlite) — chạy ngay trong backend, KHÔNG cần cài PostgreSQL.
+    │   ├── runMigrations.ts                  # Tạo/cập nhật bảng khi khởi động (chạy các file sql/ chưa chạy)
+    │   └── sharedDatabase.ts                 # Giữ 1 kết nối DB dùng chung cho cả backend: db().query(...)
     ├── domain/
-    │   ├── compareFloodLevels.ts            # Trả về mức nặng hơn trong 2 mức. Ví dụ worseFloodLevel('warning', 'critical') = 'crit...
-    │   ├── getConnectionState.ts            # TÍNH TRẠNG THÁI KẾT NỐI từ lần cuối có dữ liệu và chu kỳ gửi của node.
-    │   ├── getFloodLevel.ts                 # XẾP MỨC NGẬP từ độ sâu (cm) và 3 ngưỡng của node.
-    │   ├── getInfluenceRadius.ts            # Bán kính vùng ảnh hưởng (m) theo mức ngập; dữ liệu đã cũ thì luôn 0 (không vẽ).
-    │   ├── isFloodInfoUsable.ts             # Dữ liệu ngập của node còn đủ mới để VẼ VÙNG NGẬP và dùng khi KIỂM TRA TUYẾN không?
-    │   └── isFloodingLevel.ts               # Mức này có tính là "đang ngập" không (từ Cảnh báo trở lên).
+    │   ├── compareFloodLevels.ts             # Trả về mức nặng hơn trong 2 mức. Ví dụ worseFloodLevel('warning', 'critical') = 'crit...
+    │   ├── getConnectionState.ts             # TÍNH TRẠNG THÁI KẾT NỐI từ lần cuối có dữ liệu và chu kỳ gửi của node.
+    │   ├── getFloodLevel.ts                  # XẾP MỨC NGẬP từ độ sâu (cm) và 3 ngưỡng của node.
+    │   ├── getInfluenceRadius.ts             # Bán kính vùng ảnh hưởng (m) theo mức ngập; dữ liệu đã cũ thì luôn 0 (không vẽ).
+    │   ├── isFloodInfoUsable.ts              # Dữ liệu ngập của node còn đủ mới để VẼ VÙNG NGẬP và dùng khi KIỂM TRA TUYẾN không?
+    │   └── isFloodingLevel.ts                # Mức này có tính là "đang ngập" không (từ Cảnh báo trở lên).
     ├── geo/
-    │   ├── clipPathToCircle.ts              # Cắt 1 con đường theo hình tròn (giữ phần nằm trong vùng ngập)
-    │   ├── distanceInMeters.ts              # Khoảng cách theo đường chim bay giữa 2 điểm (mét), công thức haversine.
-    │   ├── distanceToPathInMeters.ts        # Khoảng cách ngắn nhất (mét) từ 1 điểm tới 1 đường gấp khúc (vd tuyến đường đi).
-    │   ├── toIsoString.ts                   # Đổi thời gian từ DB (Date hoặc chuỗi) sang chuỗi ISO chuẩn "2026-10-25T07:00:00.000Z"...
-    │   └── toLocalMeters.ts                 # Đổi tọa độ sang (x, y) tính bằng MÉT so với 1 điểm gốc — coi mặt đất là phẳng.
+    │   ├── clipPathToCircle.ts               # Cắt 1 con đường theo hình tròn (giữ phần nằm trong vùng ngập)
+    │   ├── distanceInMeters.ts               # Khoảng cách theo đường chim bay giữa 2 điểm (mét), công thức haversine.
+    │   ├── distanceToPathInMeters.ts         # Khoảng cách ngắn nhất (mét) từ 1 điểm tới 1 đường gấp khúc (vd tuyến đường đi).
+    │   ├── toIsoString.ts                    # Đổi thời gian từ DB (Date hoặc chuỗi) sang chuỗi ISO chuẩn "2026-10-25T07:00:00.000Z"...
+    │   └── toLocalMeters.ts                  # Đổi tọa độ sang (x, y) tính bằng MÉT so với 1 điểm gốc — coi mặt đất là phẳng.
     ├── http/
-    │   ├── HttpError.ts                     # Lỗi trả về cho app kèm mã HTTP, vd `throw new HttpError(404, 'Không có node này')`.
-    │   ├── createHttpApp.ts                 # Tạo ứng dụng web: CORS, JSON, gắn các API + trang /admin
-    │   ├── handleHttpError.ts               # XỬ LÝ LỖI CHUNG cho mọi API: luôn trả JSON dạng { "error": "câu tiếng Việt" }.
-    │   ├── limitRequestsPerMinute.ts        # GIỚI HẠN SỐ LẦN GỌI mỗi phút cho mỗi địa chỉ IP — dùng cho API gọi ra dịch vụ ngoài (...
-    │   ├── readQueryNumber.ts               # Đọc 1 tham số số trên URL (?lat=10.77). Thiếu thì dùng mặc định; ghi sai hoặc ngoài k...
-    │   └── requireAdminKey.ts               # CHẶN API ADMIN nếu không có đúng khóa. Gửi khóa trong header:  x-admin-key: <ADMIN_AP...
+    │   ├── HttpError.ts                      # Lỗi trả về cho app kèm mã HTTP, vd `throw new HttpError(404, 'Không có node này')`.
+    │   ├── createHttpApp.ts                  # Tạo ứng dụng web: CORS, JSON, gắn các API + trang /admin
+    │   ├── handleHttpError.ts                # XỬ LÝ LỖI CHUNG cho mọi API: luôn trả JSON dạng { "error": "câu tiếng Việt" }.
+    │   ├── limitRequestsPerMinute.ts         # GIỚI HẠN SỐ LẦN GỌI mỗi phút cho mỗi địa chỉ IP — dùng cho API gọi ra dịch vụ ngoài (...
+    │   ├── readQueryNumber.ts                # Đọc 1 tham số số trên URL (?lat=10.77). Thiếu thì dùng mặc định; ghi sai hoặc ngoài k...
+    │   └── requireAdminKey.ts                # CHẶN API ADMIN nếu không có đúng khóa. Gửi khóa trong header:  x-admin-key: <ADMIN_AP...
     ├── ingest/
-    │   ├── IngestRejection.ts               # Lỗi "tin nhắn không hợp lệ" kèm lý do tiếng Việt
-    │   ├── IngestResult.ts                  # Kết quả xử lý 1 tin nhắn của node.
-    │   ├── ParsedNodeMessage.ts             # 1 tin nhắn của node SAU KHI đã kiểm tra hợp lệ và chuẩn hóa — sẵn sàng lưu vào DB.
-    │   ├── describeSchemaIssues.ts          # Đổi lỗi kiểm tra dữ liệu của thư viện zod thành câu tiếng Việt dễ hiểu.
-    │   ├── handleNodeMessage.ts             # ★ XỬ LÝ 1 TIN NHẮN NODE: kiểm tra → lưu → đẩy realtime
-    │   ├── nodeMessageSchema.ts             # ★ Khuôn dữ liệu 1 tin nhắn node (trường nào, kiểu gì, khoảng nào)
-    │   ├── parseNodeMessage.ts              # Kiểm tra + chuẩn hóa 1 tin nhắn, sai thì nêu lý do tiếng Việt
-    │   ├── parseTimeValue.ts                # ĐỌC THỜI GIAN node gửi lên, trả về Date hoặc null nếu không đọc được.
-    │   └── resolveMeasuredAt.ts             # Chọn thời điểm đo: giờ thiết bị (nếu hợp lệ) hay giờ máy chủ
+    │   ├── IngestRejection.ts                # Lỗi "tin nhắn không hợp lệ" kèm lý do tiếng Việt
+    │   ├── IngestResult.ts                   # Kết quả xử lý 1 tin nhắn của node.
+    │   ├── ParsedNodeMessage.ts              # 1 tin nhắn của node SAU KHI đã kiểm tra hợp lệ và chuẩn hóa — sẵn sàng lưu vào DB.
+    │   ├── describeSchemaIssues.ts           # Đổi lỗi kiểm tra dữ liệu của thư viện zod thành câu tiếng Việt dễ hiểu.
+    │   ├── handleNodeMessage.ts              # ★ XỬ LÝ 1 TIN NHẮN NODE: kiểm tra → lưu → đẩy realtime
+    │   ├── nodeMessageSchema.ts              # ★ Khuôn dữ liệu 1 tin nhắn node (trường nào, kiểu gì, khoảng nào)
+    │   ├── parseClockTime.ts                 # Đọc giờ không có ngày node gửi: "14:05:30", "14/05/30"
+    │   ├── parseDateText.ts                  # Đọc ngày node gửi kèm: "2026-10-26" hoặc "26/10/2026"
+    │   ├── parseNodeMessage.ts               # ★ Kiểm tra + đổi đơn vị 1 tin nhắn (mm→cm, m→cm, mm/s→mm/h), sai thì nêu lý do
+    │   ├── parseTimeValue.ts                 # Đọc thời gian dạng ISO 8601 hoặc số Unix (kiểu cũ)
+    │   ├── resolveMeasuredAt.ts              # Chọn thời điểm đo: giờ node (ghép ngày hôm nay nếu chỉ có giờ) hay giờ máy chủ
+    │   └── vietnamTime.ts                    # Ghép ngày + giờ theo giờ Việt Nam (UTC+7)
     ├── mappers/
-    │   ├── toModelDto.ts                    # Đổi 1 dòng bảng node_models sang dạng gửi cho app.
-    │   ├── toReadingDto.ts                  # Đổi 1 dòng bảng readings sang dạng gửi cho app
-    │   └── toStationDto.ts                  # Ghép node + lần đo mới nhất + công thức → 1 "trạm" gửi cho app
+    │   ├── toModelDto.ts                     # Đổi 1 dòng bảng node_models sang dạng gửi cho app.
+    │   ├── toReadingDto.ts                   # Đổi 1 dòng bảng readings sang dạng gửi cho app
+    │   └── toStationDto.ts                   # Ghép node + lần đo mới nhất + công thức → 1 "trạm" gửi cho app
     ├── mqtt/
-    │   ├── getNodeIdFromTopic.ts            # Lấy mã node từ topic MQTT. Quy ước topic: smartflood/nodes/<mã node>/data
-    │   ├── mqttStatus.ts                    # Tình trạng kết nối MQTT hiện tại — API /api/v1/health đọc từ đây.
-    │   ├── startEmbeddedBroker.ts           # BẬT 1 BROKER MQTT NHÚNG (thư viện aedes) — chỉ dùng khi chạy thử trên laptop, để khôn...
-    │   └── subscribeNodeMessages.ts         # KẾT NỐI MQTT VÀ NGHE DỮ LIỆU NODE: gateway LoRa đẩy mỗi lần đo lên topic smartflood/n...
+    │   ├── getNodeIdFromTopic.ts             # Lấy mã node từ topic MQTT. Quy ước topic: smartflood/nodes/<mã node>/data
+    │   ├── mqttStatus.ts                     # Tình trạng kết nối MQTT hiện tại — API /api/v1/health đọc từ đây.
+    │   ├── startEmbeddedBroker.ts            # BẬT 1 BROKER MQTT NHÚNG (thư viện aedes) — chỉ dùng khi chạy thử trên laptop, để khôn...
+    │   └── subscribeNodeMessages.ts          # KẾT NỐI MQTT VÀ NGHE DỮ LIỆU NODE: gateway LoRa đẩy mỗi lần đo lên topic smartflood/n...
     ├── nearby/
-    │   └── buildNearbyResult.ts             # TÌNH HÌNH NGẬP QUANH 1 VỊ TRÍ (màn "Quanh bạn" của app):
+    │   └── buildNearbyResult.ts              # TÌNH HÌNH NGẬP QUANH 1 VỊ TRÍ (màn "Quanh bạn" của app):
     ├── realtime/
-    │   ├── createRealtimeServer.ts          # Bật Socket.IO trên cùng cổng với API (http://máy-chủ:3000/socket.io/).
-    │   └── realtimeHub.ts                   # Đẩy trạm vừa cập nhật tới mọi app đang mở (station:update)
+    │   ├── createRealtimeServer.ts           # Bật Socket.IO trên cùng cổng với API (http://máy-chủ:3000/socket.io/).
+    │   └── realtimeHub.ts                    # Đẩy trạm vừa cập nhật tới mọi app đang mở (station:update)
     ├── repositories/
     │   ├── errors/
-    │   │   ├── insertIngestError.ts         # Ghi lại 1 tin nhắn bị từ chối kèm lý do — admin xem ở trang /admin, mục "Tin nhắn lỗi".
-    │   │   └── listIngestErrors.ts          # Các tin nhắn bị từ chối gần nhất (mới nhất trước).
+    │   │   ├── insertIngestError.ts          # Ghi lại 1 tin nhắn bị từ chối kèm lý do — admin xem ở trang /admin, mục "Tin nhắn lỗi".
+    │   │   └── listIngestErrors.ts           # Các tin nhắn bị từ chối gần nhất (mới nhất trước).
     │   ├── models/
-    │   │   ├── insertNodeModel.ts           # LƯU 1 PHIÊN BẢN CÔNG THỨC node vừa gửi. Node gửi lại phiên bản đã có thì bỏ qua (giữ...
-    │   │   └── listNodeModels.ts            # Tất cả phiên bản công thức của 1 node, từ cũ (v1 = công thức chung) đến mới.
+    │   │   ├── insertNodeModel.ts            # LƯU 1 PHIÊN BẢN CÔNG THỨC node vừa gửi. Node gửi lại phiên bản đã có thì bỏ qua (giữ...
+    │   │   └── listNodeModels.ts             # Tất cả phiên bản công thức của 1 node, từ cũ (v1 = công thức chung) đến mới.
     │   ├── nodes/
-    │   │   ├── NodeSettings.ts              # Các thông tin admin được đặt cho 1 node (trang /admin → Sửa node). Trường nào không g...
-    │   │   ├── createNode.ts                # Admin tạo node mới trước khi node gửi dữ liệu. Mã node đã có thì báo lỗi (trả về false).
-    │   │   ├── ensureNodeExists.ts          # Node lạ gửi dữ liệu lần đầu → tự tạo node mới (tên tạm = mã node, chưa có vị trí).
-    │   │   ├── findNodeRecord.ts            # Lấy 1 node theo mã; không có thì trả về null.
-    │   │   ├── listStationRows.ts           # Lấy các node kèm lần đo mới nhất + công thức mới nhất (1 câu SQL)
-    │   │   ├── setNodeLocationIfMissing.ts  # Node gửi kèm tọa độ mà node CHƯA có vị trí thì lưu vào. Đã có vị trí (admin đặt) thì...
-    │   │   ├── touchNodeLastMessage.ts      # Ghi lại "lần cuối máy chủ nhận tin nhắn trực tiếp của node" — dùng để tính online / m...
-    │   │   └── updateNode.ts                # Admin sửa thông tin node (chỉ sửa những trường có gửi lên). Trả về false nếu không có...
+    │   │   ├── NodeSettings.ts               # Các thông tin admin được đặt cho 1 node (trang /admin → Sửa node). Trường nào không g...
+    │   │   ├── createNode.ts                 # Admin tạo node mới trước khi node gửi dữ liệu. Mã node đã có thì báo lỗi (trả về false).
+    │   │   ├── ensureNodeExists.ts           # Node lạ gửi dữ liệu lần đầu → tự tạo node mới (tên tạm = mã node, chưa có vị trí).
+    │   │   ├── findNodeRecord.ts             # Lấy 1 node theo mã; không có thì trả về null.
+    │   │   ├── listStationRows.ts            # Lấy các node kèm lần đo mới nhất + công thức mới nhất (1 câu SQL)
+    │   │   ├── setNodeLocationIfMissing.ts   # Node gửi kèm tọa độ mà node CHƯA có vị trí thì lưu vào. Đã có vị trí (admin đặt) thì...
+    │   │   ├── touchNodeLastMessage.ts       # Ghi lại "lần cuối máy chủ nhận tin nhắn trực tiếp của node" — dùng để tính online / m...
+    │   │   └── updateNode.ts                 # Admin sửa thông tin node (chỉ sửa những trường có gửi lên). Trả về false nếu không có...
     │   └── readings/
-    │       ├── insertReading.ts             # LƯU 1 LẦN ĐO. Trả về true nếu lưu mới, false nếu đã có lần đo cùng node + cùng thời điểm
-    │       └── listReadings.ts              # LỊCH SỬ ĐO của 1 node trong khoảng [from, to], tối đa `limit` lần đo MỚI NHẤT,
+    │       ├── insertReading.ts              # LƯU 1 LẦN ĐO. Trả về true nếu lưu mới, false nếu đã có lần đo cùng node + cùng thời điểm
+    │       └── listReadings.ts               # LỊCH SỬ ĐO của 1 node trong khoảng [from, to], tối đa `limit` lần đo MỚI NHẤT,
     ├── roads/
-    │   ├── fetchRoadsAround.ts              # Lấy hình dạng các con đường quanh 1 điểm từ OpenStreetMap (Overpass)
-    │   └── getFloodedRoadsForStation.ts     # Các đoạn đường bị ngập quanh 1 node (có nhớ tạm 12 giờ)
+    │   ├── fetchRoadsAround.ts               # Lấy hình dạng các con đường quanh 1 điểm từ OpenStreetMap (Overpass)
+    │   └── getFloodedRoadsForStation.ts      # Các đoạn đường bị ngập quanh 1 node (có nhớ tạm 12 giờ)
     ├── routes/
     │   ├── admin/
-    │   │   ├── getAdminNodes.ts             # GET /api/v1/admin/nodes — mọi node, kể cả node đã ẩn, kèm tình trạng MQTT (trang admin).
-    │   │   ├── getIngestErrors.ts           # GET /api/v1/admin/ingest-errors?limit=100 — các tin nhắn bị từ chối gần nhất và lý do.
-    │   │   ├── nodeSettingsSchema.ts        # Khuôn thông tin admin được sửa cho 1 node (mọi trường đều không bắt buộc).
-    │   │   ├── patchAdminNode.ts            # PATCH /api/v1/admin/nodes/:nodeId — sửa tên, vị trí, ngưỡng, chu kỳ gửi, ẩn/hiện node.
-    │   │   ├── postAdminNode.ts             # POST /api/v1/admin/nodes — tạo node mới (khai báo trước tên, vị trí, ngưỡng).
-    │   │   ├── postImportReadings.ts        # POST /api/v1/admin/import  body: { "messages": [ {...}, {...} ] }  (tối đa 5000 tin m...
-    │   │   └── postTestMessage.ts           # POST /api/v1/admin/messages  body: { "message": { ...1 tin nhắn giống node gửi... } }
+    │   │   ├── getAdminNodes.ts              # GET /api/v1/admin/nodes — mọi node, kể cả node đã ẩn, kèm tình trạng MQTT (trang admin).
+    │   │   ├── getIngestErrors.ts            # GET /api/v1/admin/ingest-errors?limit=100 — các tin nhắn bị từ chối gần nhất và lý do.
+    │   │   ├── nodeSettingsSchema.ts         # Khuôn thông tin admin được sửa cho 1 node (mọi trường đều không bắt buộc).
+    │   │   ├── patchAdminNode.ts             # PATCH /api/v1/admin/nodes/:nodeId — sửa tên, vị trí, ngưỡng, chu kỳ gửi, ẩn/hiện node.
+    │   │   ├── postAdminNode.ts              # POST /api/v1/admin/nodes — tạo node mới (khai báo trước tên, vị trí, ngưỡng).
+    │   │   ├── postImportReadings.ts         # POST /api/v1/admin/import  body: { "messages": [ {...}, {...} ] }  (tối đa 5000 tin m...
+    │   │   └── postTestMessage.ts            # POST /api/v1/admin/messages  body: { "message": { ...1 tin nhắn giống node gửi... } }
     │   ├── public/
-    │   │   ├── getHealth.ts                 # GET /api/v1/health — máy chủ còn sống không, DB và MQTT có kết nối không. Dùng để kiể...
-    │   │   ├── getNearby.ts                 # GET /api/v1/nearby?lat=10.77&lng=106.66&radius=2000 — tình hình ngập quanh 1 vị trí (...
-    │   │   ├── getStation.ts                # GET /api/v1/stations/:nodeId — 1 trạm.
-    │   │   ├── getStationModels.ts          # GET /api/v1/stations/:nodeId/models — các phiên bản công thức của node (v1 = công thứ...
-    │   │   ├── getStationReadings.ts        # GET /api/v1/stations/:nodeId/readings?hours=24&limit=1000 — lịch sử đo để vẽ biểu đồ.
-    │   │   ├── getStations.ts               # GET /api/v1/stations — danh sách trạm đang hoạt động kèm tình trạng mới nhất (app tải...
-    │   │   └── postRouteCheck.ts            # POST /api/v1/route/check  body: { "start": {latitude, longitude}, "end": {latitude, l...
-    │   ├── registerAdminRoutes.ts           # CÁC API ADMIN — phải gửi header x-admin-key đúng ADMIN_API_KEY. Trang /admin gọi các...
-    │   └── registerPublicRoutes.ts          # CÁC API CÔNG KHAI cho app — chỉ đọc, không cần đăng nhập.
+    │   │   ├── getHealth.ts                  # GET /api/v1/health — máy chủ còn sống không, DB và MQTT có kết nối không. Dùng để kiể...
+    │   │   ├── getNearby.ts                  # GET /api/v1/nearby?lat=10.77&lng=106.66&radius=2000 — tình hình ngập quanh 1 vị trí (...
+    │   │   ├── getStation.ts                 # GET /api/v1/stations/:nodeId — 1 trạm.
+    │   │   ├── getStationModels.ts           # GET /api/v1/stations/:nodeId/models — các phiên bản công thức của node (v1 = công thứ...
+    │   │   ├── getStationReadings.ts         # GET /api/v1/stations/:nodeId/readings?hours=24&limit=1000 — lịch sử đo để vẽ biểu đồ.
+    │   │   ├── getStations.ts                # GET /api/v1/stations — danh sách trạm đang hoạt động kèm tình trạng mới nhất (app tải...
+    │   │   └── postRouteCheck.ts             # POST /api/v1/route/check  body: { "start": {latitude, longitude}, "end": {latitude, l...
+    │   ├── registerAdminRoutes.ts            # CÁC API ADMIN — phải gửi header x-admin-key đúng ADMIN_API_KEY. Trang /admin gọi các...
+    │   └── registerPublicRoutes.ts           # CÁC API CÔNG KHAI cho app — chỉ đọc, không cần đăng nhập.
     ├── routing/
-    │   ├── FloodZone.ts                     # 1 vùng cần tránh khi đi đường: tâm là node đang ngập, bán kính = vùng ảnh hưởng + vùn...
-    │   ├── checkRoute.ts                    # KIỂM TRA TUYẾN ĐƯỜNG A → B có đi qua vùng ngập không, và tìm tuyến tránh nếu có. Cách...
-    │   ├── fetchOsrmRoutes.ts               # HỎI DỊCH VỤ CHỈ ĐƯỜNG OSRM: đi qua lần lượt các điểm `points` (điểm đi, [điểm trung g...
-    │   ├── findActiveFloodZones.ts          # Các vùng ngập ĐANG CÓ HIỆU LỰC: node có vị trí, dữ liệu còn mới, từ mức Cảnh báo trở...
-    │   ├── findFloodZonesOnPath.ts          # Những vùng ngập mà tuyến đường `path` đi xuyên qua (khoảng cách từ node tới tuyến < b...
-    │   ├── formatRouteLabels.ts             # "850 m" hoặc "3,2 km".
-    │   └── makeDetourWaypoints.ts           # TẠO 2 ĐIỂM ĐI VÒNG quanh 1 vùng ngập: lệch sang 2 bên của hướng đi (vuông góc với đườ...
+    │   ├── FloodZone.ts                      # 1 vùng cần tránh khi đi đường: tâm là node đang ngập, bán kính = vùng ảnh hưởng + vùn...
+    │   ├── checkRoute.ts                     # KIỂM TRA TUYẾN ĐƯỜNG A → B có đi qua vùng ngập không, và tìm tuyến tránh nếu có. Cách...
+    │   ├── fetchOsrmRoutes.ts                # HỎI DỊCH VỤ CHỈ ĐƯỜNG OSRM: đi qua lần lượt các điểm `points` (điểm đi, [điểm trung g...
+    │   ├── findActiveFloodZones.ts           # Các vùng ngập ĐANG CÓ HIỆU LỰC: node có vị trí, dữ liệu còn mới, từ mức Cảnh báo trở...
+    │   ├── findFloodZonesOnPath.ts           # Những vùng ngập mà tuyến đường `path` đi xuyên qua (khoảng cách từ node tới tuyến < b...
+    │   ├── formatRouteLabels.ts              # "850 m" hoặc "3,2 km".
+    │   └── makeDetourWaypoints.ts            # TẠO 2 ĐIỂM ĐI VÒNG quanh 1 vùng ngập: lệch sang 2 bên của hướng đi (vuông góc với đườ...
     ├── services/
-    │   └── loadStations.ts                  # LẤY DANH SÁCH TRẠM đã tính sẵn tình trạng (dùng cho app, trang admin, kiểm tra tuyến,...
+    │   └── loadStations.ts                   # LẤY DANH SÁCH TRẠM đã tính sẵn tình trạng (dùng cho app, trang admin, kiểm tra tuyến,...
     ├── types/
-    │   ├── ConnectionState.ts               # TRẠNG THÁI KẾT NỐI của node (xem quy tắc ở src/config/floodRules.ts):
-    │   ├── FloodLevel.ts                    # MỨC NGẬP — so độ sâu ngập với 3 ngưỡng của node:
-    │   ├── FloodedRoad.ts                   # 1 đoạn đường nằm trong vùng ảnh hưởng của 1 node đang ngập — app tô màu theo `level`.
-    │   ├── LatLng.ts                        # Một điểm trên bản đồ: vĩ độ, kinh độ (cùng dạng app dùng).
-    │   ├── NearbyResult.ts                  # KẾT QUẢ "QUANH BẠN" (GET /api/v1/nearby):
-    │   ├── NodeModelRecord.ts               # 1 dòng của bảng `node_models`: 1 phiên bản công thức hồi quy của 1 node.
-    │   ├── NodeRecord.ts                    # 1 dòng của bảng `nodes` đúng như trong cơ sở dữ liệu (tên cột viết kiểu snake_case).
-    │   ├── ReadingRecord.ts                 # 1 dòng của bảng `readings` (1 lần đo). Thời gian có thể là Date hoặc chuỗi tùy cách t...
-    │   ├── RouteCheckResult.ts              # Dạng kết quả kiểm tra tuyến đường gửi cho app
-    │   └── StationDto.ts                    # Dạng dữ liệu 1 trạm / 1 lần đo / 1 công thức gửi cho app
-    └── server.ts                            # ★ ĐIỂM KHỞI ĐỘNG: nối DB → bật API → nối MQTT
+    │   ├── ConnectionState.ts                # TRẠNG THÁI KẾT NỐI của node (xem quy tắc ở src/config/floodRules.ts):
+    │   ├── FloodLevel.ts                     # MỨC NGẬP — so độ sâu ngập với 3 ngưỡng của node:
+    │   ├── FloodedRoad.ts                    # 1 đoạn đường nằm trong vùng ảnh hưởng của 1 node đang ngập — app tô màu theo `level`.
+    │   ├── LatLng.ts                         # Một điểm trên bản đồ: vĩ độ, kinh độ (cùng dạng app dùng).
+    │   ├── NearbyResult.ts                   # KẾT QUẢ "QUANH BẠN" (GET /api/v1/nearby):
+    │   ├── NodeModelRecord.ts                # 1 dòng của bảng `node_models`: 1 phiên bản công thức hồi quy của 1 node.
+    │   ├── NodeRecord.ts                     # 1 dòng của bảng `nodes` đúng như trong cơ sở dữ liệu (tên cột viết kiểu snake_case).
+    │   ├── ReadingRecord.ts                  # 1 dòng của bảng `readings` (1 lần đo). Thời gian có thể là Date hoặc chuỗi tùy cách t...
+    │   ├── RouteCheckResult.ts               # Dạng kết quả kiểm tra tuyến đường gửi cho app
+    │   └── StationDto.ts                     # Dạng dữ liệu 1 trạm / 1 lần đo / 1 công thức gửi cho app
+    └── server.ts                             # ★ ĐIỂM KHỞI ĐỘNG: nối DB → bật API → nối MQTT
 ```
 
 Đọc code theo thứ tự này là dễ hiểu nhất:
 
 1. `src/server.ts`: khởi động gồm những bước gì
-2. `sql/001_create_tables.sql`: dữ liệu lưu thế nào
-3. `src/ingest/handleNodeMessage.ts`: 1 tin nhắn node đi qua những bước nào
+2. `sql/001_create_tables.sql` + `sql/002_iot_packet_v2.sql`: dữ liệu lưu thế nào
+3. `src/ingest/handleNodeMessage.ts` → `parseNodeMessage.ts`: 1 tin nhắn node đi qua những bước nào, đổi đơn vị ra sao
 4. `src/services/loadStations.ts` → `src/mappers/toStationDto.ts`: tính tình trạng trạm
 5. `src/routes/registerPublicRoutes.ts`: app gọi được những API nào
 
@@ -474,8 +484,10 @@ smartflood-backend/
 |---|---|
 | Đổi ngưỡng ngập mặc định, bán kính vùng ảnh hưởng, quy tắc online/offline | `src/config/floodRules.ts` |
 | Đổi ngưỡng / vị trí **1 node cụ thể** | Trang admin → Xem / Sửa (không cần sửa code) |
-| Node gửi thêm trường mới và muốn có cột riêng | `sql/002_...sql` (thêm cột) + `src/ingest/nodeMessageSchema.ts` + `src/repositories/readings/insertReading.ts` + `src/types/ReadingRecord.ts` + `src/mappers/toReadingDto.ts` |
+| Node gửi thêm trường mới và muốn có cột riêng | **file mới** `sql/003_...sql` (thêm cột, không sửa file cũ) + `src/ingest/parseNodeMessage.ts` + `src/ingest/nodeMessageSchema.ts` + `src/repositories/readings/insertReading.ts` + `src/types/ReadingRecord.ts` + `src/mappers/toReadingDto.ts` |
 | Đổi khoảng giá trị hợp lệ của 1 trường | `src/ingest/nodeMessageSchema.ts` |
+| Bên IoT đổi tên trường / đơn vị gửi lên | `src/ingest/nodeMessageSchema.ts` (tên, khoảng) + `src/ingest/parseNodeMessage.ts` (đổi đơn vị) + [IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md) |
+| Đổi cách xử lý giờ node gửi (vd gateway có ngày) | `src/ingest/resolveMeasuredAt.ts` + `DEVICE_CLOCK_*` trong `src/config/floodRules.ts` |
 | Thêm 1 API mới | Tạo file trong `src/routes/public/` rồi khai báo trong `src/routes/registerPublicRoutes.ts` |
 | Đổi loại đường được tô màu | `src/roads/fetchRoadsAround.ts` (biến `ROAD_TYPES`) |
 | Đổi câu thông báo kiểm tra tuyến | `src/routing/checkRoute.ts` |
@@ -510,6 +522,7 @@ Kiểm tra lỗi kiểu trước khi gửi code: `npm run typecheck` (không in 
 - **Chưa có điều khiển còi/bơm**, vì cần đường gửi lệnh ngược xuống node qua LoRa; bên IoT chưa có.
 - **MQTT chưa mã hóa TLS.** Nên giới hạn IP được vào cổng 1883 (mục 3).
 - **OSRM và Overpass là dịch vụ miễn phí dùng chung**, có thể chậm hoặc từ chối khi quá tải; backend đã có giới hạn số lần gọi và phương án dự phòng. Dùng thật lâu dài thì nên tự dựng OSRM.
-- **Backend không tự học công thức** (cách A). Các con số `mae_cm`, `r2` là **node tự báo**, backend chỉ lưu lại.
+- **Chưa có dự đoán.** Trạm A01, A02 hiện chỉ gửi số đo, chưa gửi dự đoán/công thức → app ghi "Trạm chưa có dự đoán". Backend **không tự học công thức** (cách A: node tự học rồi gửi lên; backend có sẵn chỗ lưu). Cách máy chủ tự học (cách B) đang để sau.
+- **Một số câu hỏi về dữ liệu chưa có câu trả lời** (mực nước đo so với mốc nào, lượng mưa cộng dồn từ lúc nào, gateway có ngày tháng không...): xem mục 8 của [IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md).
 - **Dữ liệu từ `npm run fake-node` là dữ liệu giả**: mã node `TEST-...`, có `"is_test": true`, trang admin gắn nhãn **THỬ**. **Không** chạy lệnh này vào máy chủ thật.
 - Đã kiểm tra: `npm run typecheck`, chạy thật với PGlite và với PostgreSQL 16, MQTT, toàn bộ API, trang admin, nhập file JSON/CSV. **Chưa** chạy thử bằng `docker compose` (máy dùng để viết code không tải được image Docker), nên lần deploy đầu cần để ý log.

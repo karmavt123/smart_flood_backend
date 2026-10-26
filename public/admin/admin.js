@@ -59,6 +59,13 @@ function timeAgo(iso) {
 const clock = (iso) => (iso ? new Date(iso).toLocaleString('vi-VN', { hour12: false }) : '—');
 const num = (value, unit = '') => (value === null || value === undefined ? '—' : `${Math.round(value * 10) / 10}${unit}`);
 const levelBadge = (level) => el('span', { className: `level ${level}` }, LEVEL_TEXT[level] || level);
+const has = (value) => value !== null && value !== undefined;
+/** Thủy triều: DB lưu cm, hiển thị theo mét giống gói tin bên IoT. */
+const tideText = (cm) => (has(cm) ? `${(cm / 100).toFixed(2)} m` : '—');
+/** Mưa: lượng mưa (mm) của gói tin mới; gói tin kiểu cũ thì là tổng mưa 60 phút. */
+const rainText = (r) => (has(r.rainMm) ? num(r.rainMm, ' mm') : has(r.rainMm1h) ? `${num(r.rainMm1h, ' mm')} /1h` : '—');
+/** Giờ Việt Nam hiện tại dạng "14:05:30" — giống trường time node gửi. */
+const vietnamClockNow = () => new Date().toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
 
 // ---------- đăng nhập ----------
 function logout(message) {
@@ -103,7 +110,7 @@ async function loadNodes() {
 }
 
 function renderNodesTable() {
-  const head = el('tr', {}, ['Mã node', 'Tên', 'Vị trí', 'Kết nối', 'Lần cuối', 'Ngập', 'Mức', 'Dự đoán', 'Mưa 1h', 'Triều', 'Pin', 'Công thức', ''].map((t) => el('th', {}, t)));
+  const head = el('tr', {}, ['Mã node', 'Tên', 'Vị trí', 'Kết nối', 'Lần cuối', 'Ngập', 'Mức', 'Dự đoán', 'Lượng mưa', 'Cường độ mưa', 'Triều', 'Nhiệt độ', 'Công thức', ''].map((t) => el('th', {}, t)));
   const rows = nodes.map((n) => {
     const r = n.latest;
     const isTest = r && r.extra && r.extra.is_test === true;
@@ -118,9 +125,10 @@ function renderNodesTable() {
       el('td', {}, r ? num(r.floodDepthCm, ' cm') : '—'),
       el('td', {}, levelBadge(n.floodLevel)),
       el('td', {}, r && r.predictedDepthCm !== null ? `${num(r.predictedDepthCm, ' cm')} (+${r.forecastMinutes}′)` : '—'),
-      el('td', {}, r ? num(r.rainMm1h, ' mm') : '—'),
-      el('td', {}, r ? num(r.tideCm, ' cm') : '—'),
-      el('td', {}, r ? num(r.batteryPct, '%') : '—'),
+      el('td', {}, r ? rainText(r) : '—'),
+      el('td', {}, r ? num(r.rainRateMmH, ' mm/h') : '—'),
+      el('td', {}, r ? tideText(r.tideCm) : '—'),
+      el('td', {}, r ? num(r.temperatureC, '°C') : '—'),
       el('td', {}, n.model ? `v${n.model.version}` : '—'),
       el('td', {}, el('button', { className: 'small', onClick: () => openDetail(n.nodeId) }, 'Xem / Sửa')),
     );
@@ -211,22 +219,12 @@ async function openDetail(nodeId) {
       el('td', {}, clock(m.firstSeenAt)),
     ),
   );
+  // Bảng lần đo: chỉ hiện cột có dữ liệu (node A01/A02 không gửi độ ẩm, ánh sáng, pin... thì ẩn cột đó).
+  const readingColumns = READING_COLUMNS.filter(
+    ([, , valueOf]) => valueOf === null || readings.readings.some((r) => has(valueOf(r))),
+  );
   const readingRows = readings.readings.slice().reverse().map((r) =>
-    el('tr', {},
-      el('td', {}, clock(r.measuredAt), r.timeSource === 'server' ? el('span', { className: 'tag' }, 'giờ máy chủ') : null),
-      el('td', {}, num(r.floodDepthCm, ' cm')),
-      el('td', {}, r.predictedDepthCm === null ? '—' : num(r.predictedDepthCm, ' cm')),
-      el('td', {}, num(r.rainMm1h, ' mm')),
-      el('td', {}, num(r.tideCm, ' cm')),
-      el('td', {}, num(r.temperatureC, '°C')),
-      el('td', {}, num(r.humidityPct, '%')),
-      el('td', {}, num(r.lightLux, ' lux')),
-      el('td', {}, num(r.batteryPct, '%')),
-      el('td', {}, num(r.rssiDbm, ' dBm')),
-      el('td', {}, r.modelVersion ? `v${r.modelVersion}` : '—'),
-      el('td', {}, r.source),
-      el('td', { className: 'wrap' }, Object.keys(r.extra || {}).length ? JSON.stringify(r.extra) : ''),
-    ),
+    el('tr', {}, readingColumns.map(([, render]) => el('td', render === renderExtra ? { className: 'wrap' } : {}, render(r)))),
   );
 
   box.replaceChildren(
@@ -239,12 +237,32 @@ async function openDetail(nodeId) {
         : el('p', { className: 'muted' }, 'Node chưa gửi công thức (trường "model").'),
       el('h3', {}, '50 lần đo gần nhất'),
       readings.readings.length
-        ? el('div', { className: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Thời điểm đo', 'Ngập', 'Dự đoán', 'Mưa 1h', 'Triều', 'Nhiệt độ', 'Độ ẩm', 'Ánh sáng', 'Pin', 'Sóng', 'Công thức', 'Nguồn', 'Trường thêm'].map((t) => el('th', {}, t)))), el('tbody', {}, readingRows)))
+        ? el('div', { className: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, readingColumns.map(([title]) => el('th', {}, title)))), el('tbody', {}, readingRows)))
         : el('p', { className: 'muted' }, 'Chưa có lần đo nào.'),
     ),
   );
   renderDetailHeaderOnly();
 }
+
+/** Các cột bảng lần đo: [tiêu đề, cách hiển thị, lấy giá trị để biết cột có dữ liệu không (null = luôn hiện)]. */
+const renderExtra = (r) => (Object.keys(r.extra || {}).length ? JSON.stringify(r.extra) : '');
+const READING_COLUMNS = [
+  ['Thời điểm đo', (r) => [clock(r.measuredAt), r.timeSource === 'server' ? el('span', { className: 'tag' }, 'giờ máy chủ') : null], null],
+  ['Ngập', (r) => num(r.floodDepthCm, ' cm'), null],
+  ['Dự đoán', (r) => num(r.predictedDepthCm, ' cm'), (r) => r.predictedDepthCm],
+  ['Lượng mưa', (r) => num(r.rainMm, ' mm'), (r) => r.rainMm],
+  ['Cường độ mưa', (r) => num(r.rainRateMmH, ' mm/h'), (r) => r.rainRateMmH],
+  ['Mưa 1h (kiểu cũ)', (r) => num(r.rainMm1h, ' mm'), (r) => r.rainMm1h],
+  ['Triều', (r) => tideText(r.tideCm), null],
+  ['Nhiệt độ', (r) => num(r.temperatureC, '°C'), (r) => r.temperatureC],
+  ['Độ ẩm', (r) => num(r.humidityPct, '%'), (r) => r.humidityPct],
+  ['Ánh sáng', (r) => num(r.lightLux, ' lux'), (r) => r.lightLux],
+  ['Pin', (r) => num(r.batteryPct, '%'), (r) => r.batteryPct],
+  ['Sóng', (r) => num(r.rssiDbm, ' dBm'), (r) => r.rssiDbm],
+  ['Công thức', (r) => (r.modelVersion ? `v${r.modelVersion}` : '—'), (r) => r.modelVersion],
+  ['Nguồn', (r) => r.source, null],
+  ['Trường thêm', renderExtra, null],
+];
 
 function renderDetailHeaderOnly() {
   const node = nodes.find((n) => n.nodeId === selectedNodeId);
@@ -286,27 +304,23 @@ async function loadErrors() {
 }
 
 // ---------- gửi thử ----------
+// Đúng kiểu gói tin bên IoT gửi (node A01/A02). Mã ND-THU-01 để khỏi lẫn dữ liệu thử vào node thật.
 const EXAMPLE = {
-  node_id: 'ND-THU-01',
-  measured_at: new Date().toISOString(),
-  flood_depth_cm: 12.5,
-  rain_mm_1h: 18.2,
-  tide_cm: 135,
+  id: 'ND-THU-01',
+  time: vietnamClockNow(),
+  water_level_mm: 125,
+  rain_mm: 12.5,
+  rain_rate_mm_s: 0.004,
+  tide_m: 1.35,
   temperature_c: 29.4,
-  humidity_pct: 86,
-  light_lux: 1200,
-  battery_pct: 78,
-  rssi_dbm: -97,
-  prediction: { depth_cm: 15.1, horizon_min: 5 },
-  model: { version: 1, trained_at: '2026-10-01T00:00:00+07:00', samples: 0, horizon_min: 5, intercept: 0.15, coef: { H: 0.985, V: 4.8, T: 0.002, RH: 0.001, L: -0.00001 }, mae_cm: 0.344, rmse_cm: 0.439, r2: 0.995 },
-  location: { lat: 10.7726, lng: 106.6579 },
 };
 const testBox = document.getElementById('test-message');
 testBox.value = JSON.stringify(EXAMPLE, null, 2);
 document.getElementById('fill-now').addEventListener('click', () => {
   try {
     const obj = JSON.parse(testBox.value);
-    obj.measured_at = new Date().toISOString();
+    if ('measured_at' in obj) obj.measured_at = new Date().toISOString();
+    else obj.time = vietnamClockNow();
     testBox.value = JSON.stringify(obj, null, 2);
   } catch {
     document.getElementById('test-result').textContent = 'Nội dung đang không phải JSON hợp lệ.';

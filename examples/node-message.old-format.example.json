@@ -1,0 +1,26 @@
+{
+  "node_id": "ND-Q1-01",
+  "measured_at": "2026-10-25T14:05:00+07:00",
+  "flood_depth_cm": 12.5,
+  "rain_mm_1h": 18.2,
+  "tide_cm": 135,
+  "temperature_c": 29.4,
+  "humidity_pct": 86,
+  "light_lux": 1200,
+  "battery_pct": 78,
+  "rssi_dbm": -97,
+  "prediction": { "depth_cm": 15.1, "horizon_min": 5 },
+  "model": {
+    "version": 1,
+    "trained_at": "2026-10-01T00:00:00+07:00",
+    "samples": 0,
+    "horizon_min": 5,
+    "intercept": 0.15,
+    "coef": { "H": 0.985, "V": 4.8, "T": 0.002, "RH": 0.001, "L": -0.00001 },
+    "mae_cm": 0.344,
+    "rmse_cm": 0.439,
+    "r2": 0.995
+  },
+  "location": { "lat": 10.7769, "lng": 106.7009 },
+  "fw_version": "1.0.3"
+}

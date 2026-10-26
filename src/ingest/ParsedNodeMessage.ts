@@ -5,8 +5,15 @@ export interface ParsedNodeMessage {
   nodeId: string;
   measuredAt: Date;
   timeSource: 'device' | 'server';
+  /** Độ sâu nước ngập (cm) — node gửi water_level_mm thì đã chia 10. */
   floodDepthCm: number;
-  rainMm1h: number;
+  /** Lượng mưa node đo (mm). */
+  rainMm: number | null;
+  /** Cường độ mưa (mm/giờ) — node gửi rain_rate_mm_s thì đã nhân 3600. */
+  rainRateMmH: number | null;
+  /** Kiểu cũ: tổng mưa 60 phút gần nhất (mm). */
+  rainMm1h: number | null;
+  /** Thủy triều (cm) — node gửi tide_m thì đã nhân 100. */
   tideCm: number;
   temperatureC: number | null;
   humidityPct: number | null;

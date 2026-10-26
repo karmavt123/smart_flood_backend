@@ -7,8 +7,15 @@ export interface ReadingDto {
   receivedAt: string;
   /** "device" = giờ đo lấy từ thiết bị; "server" = thiết bị không gửi giờ (hoặc sai) nên lấy giờ máy chủ nhận. */
   timeSource: 'device' | 'server';
+  /** Độ sâu nước ngập (cm). */
   floodDepthCm: number;
-  rainMm1h: number;
+  /** Lượng mưa node đo (mm); null = node không gửi. */
+  rainMm: number | null;
+  /** Cường độ mưa (mm/giờ); null = node không gửi. */
+  rainRateMmH: number | null;
+  /** Kiểu gói tin cũ: tổng mưa 60 phút gần nhất (mm); null = node không gửi. */
+  rainMm1h: number | null;
+  /** Thủy triều (cm). App hiển thị theo mét (÷ 100). */
   tideCm: number;
   temperatureC: number | null;
   humidityPct: number | null;

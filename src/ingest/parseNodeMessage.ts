@@ -11,13 +11,21 @@ interface ParseOptions {
   /** Mã node lấy từ topic MQTT (smartflood/nodes/<mã node>/data); null nếu không có topic. */
   nodeIdFromTopic: string | null;
   receivedAt: Date;
-  /** true khi nhập dữ liệu cũ: bắt buộc có measured_at. */
+  /** true khi nhập dữ liệu cũ: bắt buộc có ngày + giờ đo. */
   mustHaveDeviceTime: boolean;
 }
 
+/** 1 cách gửi 1 đại lượng: tên trường, giá trị, nhân bao nhiêu để ra đơn vị lưu trong DB. */
+type FieldOption = [key: string, value: number | null | undefined, factor: number];
+
 /**
- * KIỂM TRA + CHUẨN HÓA 1 tin nhắn (đã là object JSON).
- * Sai ở đâu thì ném IngestRejection kèm lý do tiếng Việt, ví dụ "tide_cm: thiếu trường bắt buộc".
+ * KIỂM TRA + CHUẨN HÓA 1 tin nhắn (đã là object JSON) — nhận cả kiểu tên trường mới lẫn cũ,
+ * đổi hết về 1 đơn vị chung trước khi lưu:
+ *   mực nước ngập: water_level_mm ÷ 10 → cm      (hoặc flood_depth_cm kiểu cũ)
+ *   thủy triều:    tide_m × 100        → cm      (hoặc tide_cm kiểu cũ)
+ *   cường độ mưa:  rain_rate_mm_s × 3600 → mm/giờ (hoặc rain_rate_mm_h)
+ *   lượng mưa:     rain_mm giữ nguyên (mm)
+ * Sai ở đâu thì ném IngestRejection kèm lý do tiếng Việt, ví dụ "tide_m: thiếu thủy triều (bắt buộc)".
  */
 export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedNodeMessage {
   if (input === null || typeof input !== 'object' || Array.isArray(input)) {
@@ -26,34 +34,82 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
   const result = nodeMessageSchema.safeParse(input);
   if (!result.success) throw new IngestRejection(describeSchemaIssues(result.error, input));
   const message = result.data;
+  const issues: string[] = [];
 
-  // Mã node: lấy trong tin nhắn hoặc trong topic; có cả 2 thì phải giống nhau.
-  const nodeId = message.node_id ?? options.nodeIdFromTopic;
-  if (!nodeId) throw new IngestRejection('node_id: thiếu mã node (ghi trong tin nhắn hoặc trong topic)');
-  if (message.node_id && options.nodeIdFromTopic && message.node_id !== options.nodeIdFromTopic) {
-    throw new IngestRejection(`node_id "${message.node_id}" khác mã node trong topic "${options.nodeIdFromTopic}"`);
+  // Mã node: trong tin nhắn (id hoặc node_id) hoặc trong topic; có nhiều chỗ thì phải giống nhau.
+  if (message.id && message.node_id && message.id !== message.node_id) {
+    issues.push(`id "${message.id}" khác node_id "${message.node_id}" — chỉ gửi 1 trường`);
+  }
+  const idInMessage = message.id ?? message.node_id ?? null;
+  const nodeId = idInMessage ?? options.nodeIdFromTopic;
+  if (!nodeId) issues.push('id: thiếu mã node (ghi trong tin nhắn hoặc trong topic)');
+  if (idInMessage && options.nodeIdFromTopic && idInMessage !== options.nodeIdFromTopic) {
+    issues.push(`id "${idInMessage}" khác mã node trong topic "${options.nodeIdFromTopic}"`);
   }
 
-  const time = resolveMeasuredAt(message.measured_at, options.receivedAt, options.mustHaveDeviceTime);
+  // 3 thông tin bắt buộc: ngập, mưa, triều
+  const floodDepthCm = pickOne(
+    [
+      ['water_level_mm', message.water_level_mm, 0.1],
+      ['flood_depth_cm', message.flood_depth_cm, 1],
+    ],
+    'mực nước ngập',
+    issues,
+  );
+  if (floodDepthCm === undefined) issues.push('water_level_mm: thiếu mực nước ngập (bắt buộc)');
+
+  const tideCm = pickOne(
+    [
+      ['tide_m', message.tide_m, 100],
+      ['tide_cm', message.tide_cm, 1],
+    ],
+    'thủy triều',
+    issues,
+  );
+  if (tideCm === undefined) issues.push('tide_m: thiếu thủy triều (bắt buộc)');
+
+  const rainRateMmH = pickOne(
+    [
+      ['rain_rate_mm_s', message.rain_rate_mm_s, 3600],
+      ['rain_rate_mm_h', message.rain_rate_mm_h, 1],
+    ],
+    'cường độ mưa',
+    issues,
+  );
+  const rainMm = message.rain_mm ?? null;
+  const rainMm1h = message.rain_mm_1h ?? null;
+  if (rainRateMmH === undefined && rainMm === null && rainMm1h === null) {
+    issues.push('rain_mm: thiếu thông tin mưa — gửi ít nhất 1 trong rain_mm, rain_rate_mm_s (bắt buộc)');
+  }
+
+  if (issues.length > 0) throw new IngestRejection(issues.join('; '));
+
+  const time = resolveMeasuredAt(
+    { time: message.time, date: message.date, measuredAt: message.measured_at },
+    options.receivedAt,
+    options.mustHaveDeviceTime,
+  );
 
   // Gom các trường lạ vào extra (giới hạn độ dài để 1 node lỗi không làm phình DB).
   const extra: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
     if (!KNOWN_MESSAGE_KEYS.has(key)) extra[key] = value;
   }
-  if (time.rejectedDeviceTime !== null) extra.device_measured_at_rejected = time.rejectedDeviceTime;
+  Object.assign(extra, time.notes);
   if (JSON.stringify(extra).length > MAX_EXTRA_JSON_LENGTH) {
     throw new IngestRejection(`Các trường thêm quá dài (tối đa ${MAX_EXTRA_JSON_LENGTH} ký tự JSON)`);
   }
 
   const model = message.model;
   return {
-    nodeId,
+    nodeId: nodeId!,
     measuredAt: time.measuredAt,
     timeSource: time.timeSource,
-    floodDepthCm: message.flood_depth_cm,
-    rainMm1h: message.rain_mm_1h,
-    tideCm: message.tide_cm,
+    floodDepthCm: floodDepthCm!,
+    rainMm,
+    rainRateMmH: rainRateMmH ?? null,
+    rainMm1h,
+    tideCm: tideCm!,
     temperatureC: message.temperature_c ?? null,
     humidityPct: message.humidity_pct ?? null,
     lightLux: message.light_lux ?? null,
@@ -78,4 +134,24 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
     location: message.location ? { latitude: message.location.lat, longitude: message.location.lng } : null,
     extra,
   };
+}
+
+/**
+ * 1 đại lượng có thể gửi bằng nhiều tên trường (vd tide_m hoặc tide_cm).
+ * Trả về giá trị đã đổi đơn vị; undefined = không gửi trường nào. Gửi cả 2 → ghi lỗi (dễ nhầm đơn vị).
+ */
+function pickOne(options: FieldOption[], label: string, issues: string[]): number | undefined {
+  const given = options.filter(([, value]) => value !== null && value !== undefined);
+  if (given.length > 1) {
+    issues.push(`${given.map(([key]) => key).join(' và ')}: cùng là ${label}, chỉ gửi 1 trường`);
+    return 0; // giá trị tạm, tin nhắn sẽ bị từ chối vì đã có lỗi
+  }
+  if (given.length === 0) return undefined;
+  const [, value, factor] = given[0]!;
+  return roundStored(value! * factor);
+}
+
+/** Bỏ sai số dấu phẩy động khi đổi đơn vị (1.35 × 100 = 135.00000000000003 → 135). */
+function roundStored(value: number): number {
+  return Math.round(value * 10_000) / 10_000;
 }

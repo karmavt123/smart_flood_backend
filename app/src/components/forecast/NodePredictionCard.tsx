@@ -1,0 +1,63 @@
+import { StyleSheet, Text, View } from 'react-native';
+
+import { appColors } from '@/constants/appColors';
+import type { Station } from '@/types/Station';
+import { formatSensorValue } from '@/utils/formatSensorValue';
+import { isStationDataFresh } from '@/utils/isStationDataFresh';
+
+import { Card } from '../common/Card';
+import { SectionTitle } from '../common/SectionTitle';
+import { FloodLevelBadge } from '../station/FloodLevelBadge';
+
+/**
+ * THẺ DỰ ĐOÁN NGẬP (FR-08): độ ngập NODE TỰ DỰ ĐOÁN sau vài phút (theo báo cáo: 5 phút),
+ * so với hiện tại đang lên hay xuống, và tính bằng phiên bản công thức nào.
+ * Dữ liệu đã cũ thì ghi rõ dự đoán không còn đúng.
+ * Trạm chưa gửi dự đoán (A01, A02 hiện chỉ gửi số đo) → ghi rõ "Trạm chưa có dự đoán", không tự bịa số.
+ */
+export function NodePredictionCard({ station }: { station: Station }) {
+  const reading = station.latest;
+  const fresh = isStationDataFresh(station);
+  const predicted = reading?.predictedDepthCm ?? null;
+
+  if (!reading || predicted === null) {
+    return (
+      <Card>
+        <SectionTitle>Dự đoán ngập</SectionTitle>
+        <Text style={styles.emptyTitle}>Trạm chưa có dự đoán</Text>
+        <Text style={styles.muted}>
+          Hiện trạm chỉ gửi số đo thực tế (mực nước, mưa, triều, nhiệt độ). Phần dự đoán mực nước vài phút tới sẽ bổ sung sau.
+        </Text>
+      </Card>
+    );
+  }
+
+  const current = station.waterLevelCm ?? 0;
+  const change = Math.max(0, predicted) - current;
+  const trend = Math.abs(change) < 0.5 ? '→ gần như không đổi' : change > 0 ? `↑ tăng ${change.toFixed(1)} cm` : `↓ giảm ${Math.abs(change).toFixed(1)} cm`;
+
+  return (
+    <Card>
+      <SectionTitle>Dự đoán {reading.forecastMinutes ?? '?'} phút tới</SectionTitle>
+      <View style={styles.row}>
+        <Text style={[styles.value, !fresh && styles.stale]}>{formatSensorValue(Math.max(0, predicted), 'cm')}</Text>
+        <FloodLevelBadge level={station.predictedLevel} stale={!fresh} />
+      </View>
+      <Text style={[styles.trend, change > 0.5 && fresh && { color: appColors.danger }]}>{trend} so với hiện tại</Text>
+      <Text style={styles.muted}>
+        Node tự tính bằng công thức hồi quy{reading.modelVersion ? ` phiên bản v${reading.modelVersion}` : ''} (xem mục Công thức bên dưới).
+      </Text>
+      {!fresh ? <Text style={styles.note}>Dữ liệu của trạm đã cũ nên dự đoán này không còn đúng.</Text> : null}
+    </Card>
+  );
+}
+
+const styles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  value: { fontSize: 32, fontWeight: '900', color: appColors.text },
+  stale: { color: '#94A3B8' },
+  trend: { color: appColors.text, fontWeight: '700', marginTop: 4 },
+  muted: { color: appColors.textMuted, fontSize: 12, marginTop: 4 },
+  emptyTitle: { color: appColors.text, fontWeight: '700' },
+  note: { color: appColors.danger, fontSize: 12, marginTop: 4 },
+});

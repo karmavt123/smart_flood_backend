@@ -10,10 +10,15 @@
  *   npm run fake-node -- --with-model                   → gửi kèm dự đoán + công thức (thử trường hợp node tự học, cách A)
  *   npm run fake-node -- --url mqtt://host:1883 --username u --password p
  *
+ * Đổi tọa độ (--lat/--lng) so với lần chạy trước: node giả tự DỜI 2 trạm thử tới chỗ mới qua API admin
+ * (tin nhắn MQTT không được phép đổi vị trí trạm đã có — xem README backend, mục 2, Bước 4).
+ *
  * CHỈ DÙNG VỚI BACKEND CHẠY THỬ TRÊN MÁY MÌNH. Mã node bắt đầu bằng "TEST-" và tin nhắn có "is_test": true,
  * để không ai nhầm dữ liệu giả với dữ liệu thật. Bấm Ctrl+C để dừng.
  */
 import mqtt from 'mqtt';
+
+import 'dotenv/config';
 
 function readArg(name: string, fallback: string): string {
   const index = process.argv.indexOf(`--${name}`);
@@ -27,6 +32,8 @@ const url = readArg('url', 'mqtt://127.0.0.1:1883');
 const username = readArg('username', '');
 const password = readArg('password', '');
 const withModel = process.argv.includes('--with-model');
+const apiUrl = readArg('api', `http://localhost:${process.env.PORT || 3000}`).replace(/\/+$/, '');
+const adminKey = readArg('key', process.env.ADMIN_API_KEY || 'dev-admin-key');
 
 /** Dời 1 điểm theo mét (bắc, đông). */
 function offset(northM: number, eastM: number) {
@@ -109,7 +116,35 @@ function round(value: number, digits: number) {
   return Math.round(value * factor) / factor;
 }
 
-client.on('connect', () => {
+/**
+ * DỜI 2 TRẠM THỬ tới tọa độ mới. Backend cố ý không cho tin nhắn của node ghi đè vị trí đã có
+ * (để vị trí admin nhập không bị node đè), nên node giả gọi API admin giống như người bấm "Xem / Sửa".
+ * Trạm chưa có (404) thì bỏ qua: tin nhắn đầu tiên sẽ tự đặt vị trí.
+ */
+async function moveTestNodes() {
+  for (const node of nodes) {
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/admin/nodes/${encodeURIComponent(node.id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+        body: JSON.stringify({ latitude: node.location.lat, longitude: node.location.lng }),
+      });
+      if (response.ok) console.log(`[fake-node] Đặt ${node.id} tại (${round(node.location.lat, 5)}, ${round(node.location.lng, 5)})`);
+      else if (response.status !== 404) {
+        console.warn(`[fake-node] Không dời được ${node.id} (mã ${response.status}) → trạm giữ vị trí cũ. Sai khóa admin? Thêm --key <ADMIN_API_KEY>`);
+      }
+    } catch {
+      console.warn(`[fake-node] Không gọi được ${apiUrl} → nếu trạm đã có vị trí cũ thì giữ nguyên. Backend đã chạy chưa (npm run dev)?`);
+      return;
+    }
+  }
+}
+
+let started = false;
+client.on('connect', async () => {
+  if (started) return; // MQTT tự nối lại sau khi rớt mạng → không chạy lại từ đầu (không nhân đôi lịch gửi)
+  started = true;
+  await moveTestNodes();
   console.log(
     `[fake-node] Đã nối ${url}. Gửi ${nodes.length} node thử quanh (${centerLat}, ${centerLng}) mỗi ${intervalSec} giây` +
       (withModel ? ', có kèm dự đoán + công thức.' : '.'),

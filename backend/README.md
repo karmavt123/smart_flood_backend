@@ -18,6 +18,7 @@ Viết mới hoàn toàn, **tách riêng khỏi backend của web smartflood.vn 
 
 1. [Tổng quan](#1-tổng-quan)
 2. [Chạy thử trên laptop](#2-chạy-thử-trên-laptop-không-cần-cài-database-hay-mqtt)
+   - [2b. Trạm dùng nền tảng E-Ra](#2b-trạm-dùng-nền-tảng-e-ra-eoh)
 3. [Đưa lên máy chủ (Docker)](#3-đưa-lên-máy-chủ-docker)
 4. [Danh sách API](#4-danh-sách-api)
 5. [Cơ sở dữ liệu](#5-cơ-sở-dữ-liệu)
@@ -178,6 +179,60 @@ npm run dev
 ```
 
 macOS / Linux: `rm -rf data && npm run dev`. Trong `data/` chỉ có dữ liệu chạy thử trên laptop, máy chủ thật không bị ảnh hưởng.
+
+---
+
+## 2b. Trạm dùng nền tảng E-Ra (EoH)
+
+Trạm gửi dữ liệu lên **E-Ra** (thư viện `ERa` hoặc "3rd MQTT Gateway") thay vì gửi thẳng lên máy chủ mình → máy chủ **tự kết nối vào broker E-Ra** (`mqtt1.eoh.io:1883`), nghe các tin của 1 gateway, gom lại thành 1 lần đo rồi lưu như trạm bình thường (app, admin, học công thức đều dùng được). Code: `src/era/`.
+
+**Cần 3 thứ** (điền vào `.env`, xem mẫu trong `.env.example`):
+
+| Biến | Lấy ở đâu |
+|---|---|
+| `ERA_GATEWAY_TOKEN` | `app.e-ra.io` → **All Gateways** → chọn gateway → mã token (mã ESP32 dùng để đăng nhập E-Ra). **Bí mật**, chỉ để trong `.env` |
+| `ERA_NODE_ID` | Mã trạm muốn hiện bên SmartFlood, vd `A01` |
+| `ERA_FIELD_MAP` | Trường nào bên E-Ra là ngập / mưa / triều — xem bước dò bên dưới |
+
+**Bước dò trường dữ liệu** (làm 1 lần): PowerShell trong thư mục backend, thay 3 chỗ `TOKEN`:
+
+```powershell
+npx mqtt sub -h mqtt1.eoh.io -p 1883 -u TOKEN -P TOKEN -i smartflood-thu-nghe -t "eoh/chip/TOKEN/#" -v
+```
+
+Đợi trạm gửi, mỗi dòng là 1 tin:
+
+| Thấy dòng dạng | Trường E-Ra là | Ghi vào `ERA_FIELD_MAP` |
+|---|---|---|
+| `eoh/chip/TOKEN/third_party/<uid>/data {"muc_nuoc":12,"mua":3}` | key trong JSON | `muc_nuoc=water_level_mm*10,mua=rain_mm` |
+| `eoh/chip/TOKEN/config/12345/value {"v":12}` | số config | `config:12345=water_level_mm*10` |
+
+`*10` khi E-Ra gửi độ ngập theo **cm** (máy chủ cần **mm**); gửi mm sẵn thì bỏ `*10`. Thủy triều phải ra **m** (E-Ra gửi cm thì `*0.01`).
+
+**Bật:** điền 3 biến vào `.env` → `npm run dev`. Log đúng:
+
+```
+[era] Đã kết nối mqtt://mqtt1.eoh.io:1883, nghe gateway …a1b2 → trạm A01
+[era] Đã lưu số đo của A01: ngập 120 mm, dâng 2.4 mm/phút, mưa 3 mm, triều 1.2 m
+```
+
+Kiểm tra thêm ở `/api/v1/health` (mục `era`: đã kết nối chưa, nhận bao nhiêu tin, lưu bao nhiêu lần đo).
+
+**Cách cầu nối làm việc:**
+- Client ID ngẫu nhiên, khác thiết bị → **không đá trạm rớt mạng**; chạy cùng lúc trên laptop và máy chủ cũng được.
+- **Tốc độ dâng tự tính** từ độ ngập: $(H_{\text{bây giờ}} - H_{\text{~5 phút trước}}) / \text{số phút}$. Mới bật máy chủ (chưa có số đo ~5 phút trước) thì chưa có.
+- Trạm E-Ra hay gửi vài giây 1 lần → chỉ lưu **1 lần đo mỗi `ERA_SAVE_INTERVAL_SEC` giây** (mặc định 60).
+- Bỏ qua giá trị cũ broker còn giữ lại lúc vừa kết nối (tin *retained*) → không lưu trùng.
+- Log luôn che token thành `***`. Trường lạ chưa khai báo thì log 1 lần `Thấy trường "temp" ... → bỏ qua`.
+
+| Log | Nghĩa là |
+|---|---|
+| `Lỗi kết nối E-Ra: Connection refused: Not authorized (sai token gateway?)` | Sai `ERA_GATEWAY_TOKEN` |
+| `E-Ra TỪ CHỐI cho đọc dữ liệu của gateway này` | Token đúng nhưng E-Ra không cho đọc → báo lại, phải đổi cách |
+| `ERA_FIELD_MAP chưa có rain_mm, tide_m ...` | Máy chủ đang bắt buộc ngập + mưa + triều → thiếu trường thì mọi lần đo bị từ chối |
+| `Từ chối số đo của A01: ...` | Số đo sai khoảng hợp lệ (vd quên `*10`), xem lý do ngay trong log |
+
+**Chưa làm:** gửi hệ số công thức máy chủ học được **xuống** trạm E-Ra (trạm E-Ra không nghe topic `smartflood/nodes/<id>/model`). Máy chủ vẫn học và lưu công thức, chỉ là trạm chưa nhận được.
 
 ---
 
@@ -431,6 +486,13 @@ smartflood-backend/
     │   ├── getInfluenceRadius.ts             # Bán kính vùng ảnh hưởng (m) theo mức ngập; dữ liệu đã cũ thì luôn 0 (không vẽ).
     │   ├── isFloodInfoUsable.ts              # Dữ liệu ngập của node còn đủ mới để VẼ VÙNG NGẬP và dùng khi KIỂM TRA TUYẾN không?
     │   └── isFloodingLevel.ts                # Mức này có tính là "đang ngập" không (từ Cảnh báo trở lên).
+    ├── era/                                  # Cầu nối E-Ra: máy chủ tự nghe broker E-Ra (README mục 2b)
+    │   ├── createEraCollector.ts             # Gom các giá trị lẻ từ E-Ra thành 1 lần đo, tự tính tốc độ dâng
+    │   ├── eraStatus.ts                      # Tình trạng cầu nối E-Ra — API /api/v1/health đọc từ đây
+    │   ├── parseEraFieldMap.ts               # Đọc ERA_FIELD_MAP: trường E-Ra nào là ngập / mưa / triều, nhân bao nhiêu
+    │   ├── readEraValues.ts                  # Lấy các số đo từ 1 tin trên broker E-Ra (3rd party JSON / config value)
+    │   ├── startEraBridge.ts                 # ★ Kết nối broker E-Ra, nghe gateway, lưu số đo qua handleNodeMessage
+    │   └── startEraBridgeFromConfig.ts       # Bật cầu nối nếu .env có ERA_GATEWAY_TOKEN, kiểm tra cấu hình trước
     ├── geo/
     │   ├── clipPathToCircle.ts               # Cắt 1 con đường theo hình tròn (giữ phần nằm trong vùng ngập)
     │   ├── distanceInMeters.ts               # Khoảng cách theo đường chim bay giữa 2 điểm (mét), công thức haversine.

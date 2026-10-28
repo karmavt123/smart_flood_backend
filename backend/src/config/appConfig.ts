@@ -51,4 +51,16 @@ export const appConfig = {
   modelMinSamples: readNumber('MODEL_MIN_SAMPLES', 30),
   /** Hệ số cũ nặng bao nhiêu so với dữ liệu mới: 0 = bỏ hẳn hệ số cũ, 1 = ngang với toàn bộ dữ liệu mới. */
   modelPriorWeight: readNumber('MODEL_PRIOR_WEIGHT', 0.2),
+
+  // --- Cầu nối E-Ra (EoH): máy chủ tự nghe broker E-Ra để lấy số đo của trạm dùng nền tảng E-Ra (xem src/era/) ---
+  /** Token của gateway E-Ra. Để trống = tắt cầu nối E-Ra. BÍ MẬT: không đưa lên GitHub. */
+  eraGatewayToken: readText('ERA_GATEWAY_TOKEN'),
+  /** Broker MQTT của E-Ra. */
+  eraMqttUrl: readText('ERA_MQTT_URL', 'mqtt://mqtt1.eoh.io:1883'),
+  /** Mã trạm bên SmartFlood nhận dữ liệu của gateway này, vd "A01". */
+  eraNodeId: readText('ERA_NODE_ID'),
+  /** Trường E-Ra → trường gói tin SmartFlood, vd "muc_nuoc=water_level_mm*10,mua=rain_mm" (xem parseEraFieldMap.ts). */
+  eraFieldMap: readText('ERA_FIELD_MAP'),
+  /** Lưu tối đa 1 lần đo mỗi bao nhiêu giây (trạm E-Ra hay gửi vài giây 1 lần, lưu hết thì DB phình to). */
+  eraSaveIntervalSec: readNumber('ERA_SAVE_INTERVAL_SEC', 60),
 };

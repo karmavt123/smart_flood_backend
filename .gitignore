@@ -2,3 +2,4 @@
 .env
 *.tar.gz
 *.archive.gz
+secrets.h

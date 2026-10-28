@@ -1,13 +1,13 @@
-// THỬ KẾT NỐI: ESP32 → hotspot laptop → broker MQTT nhúng của backend.
+// THỬ KẾT NỐI: ESP32 → Wi-Fi → broker MQTT (máy chủ thật hoặc broker trên laptop).
 // Chỉ để kiểm tra đường truyền — gửi SỐ GIẢ, chưa đọc cảm biến.
 // Cần: board ESP32 + thư viện PubSubClient (Nick O'Leary). Serial Monitor để 115200.
+//
+// TRƯỚC KHI NẠP: chép secrets.example.h thành secrets.h (cùng thư mục), điền Wi-Fi + mật khẩu MQTT.
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include "secrets.h"   // báo lỗi "No such file" = chưa tạo secrets.h
 
-const char* WIFI_TEN     = "TEN_HOTSPOT";        // hotspot của laptop, PHẢI là 2.4 GHz
-const char* WIFI_MATKHAU = "MAT_KHAU_HOTSPOT";   // điền xong đừng commit mật khẩu thật lên GitHub
-const char* BROKER       = "192.168.137.1";      // IP laptop khi bật hotspot (xem bằng ipconfig)
-const int   CONG         = 1883;
+const int CONG = 1883;
 
 // Mã THỬ — chưa dùng A01/A02 để khỏi lẫn dữ liệu giả vào trạm thật.
 const char* MA_TRAM     = "ND-THU-01";
@@ -33,8 +33,8 @@ void noiWifi() {
 
 void noiMqtt() {
   while (!mqtt.connected()) {
-    Serial.printf("[MQTT] Dang noi %s:%d ... ", BROKER, CONG);
-    if (mqtt.connect(CLIENT_ID)) {                // broker tren laptop khong can tai khoan
+    Serial.printf("[MQTT] Dang noi %s:%d ... ", MQTT_HOST, CONG);
+    if (mqtt.connect(CLIENT_ID, MQTT_USER, MQTT_PASS)) {
       Serial.println("OK");
       mqtt.subscribe(TOPIC_MODEL);
     } else {
@@ -47,7 +47,7 @@ void noiMqtt() {
 void setup() {
   Serial.begin(115200);
   noiWifi();
-  mqtt.setServer(BROKER, CONG);
+  mqtt.setServer(MQTT_HOST, CONG);
   mqtt.setBufferSize(512);
   mqtt.setCallback(nhanTin);
 }
@@ -58,7 +58,7 @@ void loop() {
   mqtt.loop();                                     // phai goi thuong xuyen moi nhan duoc tin
 
   static unsigned long lanTruoc = 0;
-  if (lanTruoc == 0 || millis() - lanTruoc >= 10000) {   // thu: 10 giay 1 lan (tram that: 5 phut)
+  if (lanTruoc == 0 || millis() - lanTruoc >= GUI_MOI_GIAY * 1000UL) {   // tram that: 5 phut 1 lan
     lanTruoc = millis();
     static float H = 100;
     H += random(-5, 15);                           // so gia, cho len xuong cho vui

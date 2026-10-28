@@ -5,6 +5,7 @@ import { resolveAdminKey } from './config/resolveAdminKey.js';
 import { createDatabase } from './db/createDatabase.js';
 import { runMigrations } from './db/runMigrations.js';
 import { setDatabase } from './db/sharedDatabase.js';
+import { startEraBridgeFromConfig } from './era/startEraBridgeFromConfig.js';
 import { createHttpApp } from './http/createHttpApp.js';
 import { setMqttClient } from './mqtt/mqttClientHub.js';
 import { republishLatestServerModels } from './mqtt/republishLatestServerModels.js';
@@ -19,6 +20,7 @@ import { scheduleDailyRetraining } from './training/scheduleDailyRetraining.js';
  *   1. Kết nối DB (PostgreSQL thật hoặc nhúng) và tạo bảng nếu chưa có
  *   2. Bật API + trang admin + realtime trên cùng 1 cổng (mặc định 3000)
  *   3. Kết nối MQTT (broker thật hoặc broker nhúng) và bắt đầu nhận dữ liệu node
+ *      (+ nghe broker E-Ra nếu có trạm dùng nền tảng E-Ra)
  *   4. Hẹn giờ tự học lại công thức dự đoán cho các trạm mỗi ngày
  */
 async function main() {
@@ -48,6 +50,9 @@ async function main() {
   });
   setMqttClient(mqttClient);
 
+  // Trạm dùng nền tảng E-Ra: máy chủ tự nghe broker E-Ra (chỉ bật khi .env có ERA_GATEWAY_TOKEN).
+  const stopEraBridge = startEraBridgeFromConfig();
+
   const stopRetraining = appConfig.modelAutoRetrain ? scheduleDailyRetraining(appConfig.modelRetrainTime) : () => {};
   if (!appConfig.modelAutoRetrain) console.log('[train] Đã tắt tự học mỗi ngày (MODEL_AUTO_RETRAIN=false)');
 
@@ -55,6 +60,7 @@ async function main() {
   const shutdown = async () => {
     console.log('Đang tắt backend...');
     stopRetraining();
+    stopEraBridge();
     mqttClient.end(true);
     httpServer.close();
     await database.close();

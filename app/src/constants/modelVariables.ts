@@ -1,15 +1,15 @@
 /**
- * Ý NGHĨA CÁC BIẾN trong công thức dự đoán (theo báo cáo: dự đoán độ ngập 5 phút tới).
- * Node gửi hệ số theo đúng các tên viết tắt này (xem IOT_DATA_FORMAT.md của backend).
+ * Ý NGHĨA CÁC BIẾN trong công thức dự đoán độ ngập 5 phút tới (bản 3.0, xem IOT_DATA_FORMAT.md của backend).
+ * Hệ số dùng đúng đơn vị trong gói tin của trạm. T, RH, L chỉ có ở công thức cũ trong báo cáo.
  */
 export const modelVariableLabels: Record<string, string> = {
-  H: 'độ ngập hiện tại (cm)',
-  V: 'tốc độ dâng (cm/phút)',
+  H: 'độ ngập hiện tại (mm)',
+  V: 'tốc độ dâng (mm/phút)',
+  R: 'lượng mưa (mm)',
+  S: 'thủy triều (m)',
   T: 'nhiệt độ (°C)',
   RH: 'độ ẩm (%)',
   L: 'ánh sáng (lux)',
-  R: 'mưa (mm)',
-  S: 'triều (cm)',
 };
 
 /** Thứ tự hiển thị các biến trong công thức (biến lạ xếp cuối). */

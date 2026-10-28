@@ -6,16 +6,20 @@ import { createDatabase } from './db/createDatabase.js';
 import { runMigrations } from './db/runMigrations.js';
 import { setDatabase } from './db/sharedDatabase.js';
 import { createHttpApp } from './http/createHttpApp.js';
+import { setMqttClient } from './mqtt/mqttClientHub.js';
+import { republishLatestServerModels } from './mqtt/republishLatestServerModels.js';
 import { startEmbeddedBroker } from './mqtt/startEmbeddedBroker.js';
 import { subscribeNodeMessages } from './mqtt/subscribeNodeMessages.js';
 import { createRealtimeServer } from './realtime/createRealtimeServer.js';
 import { setRealtimeServer } from './realtime/realtimeHub.js';
+import { scheduleDailyRetraining } from './training/scheduleDailyRetraining.js';
 
 /**
  * ĐIỂM KHỞI ĐỘNG BACKEND (npm run dev / npm start), làm theo thứ tự:
  *   1. Kết nối DB (PostgreSQL thật hoặc nhúng) và tạo bảng nếu chưa có
  *   2. Bật API + trang admin + realtime trên cùng 1 cổng (mặc định 3000)
  *   3. Kết nối MQTT (broker thật hoặc broker nhúng) và bắt đầu nhận dữ liệu node
+ *   4. Hẹn giờ tự học lại công thức dự đoán cho các trạm mỗi ngày
  */
 async function main() {
   const adminKey = resolveAdminKey();
@@ -37,11 +41,20 @@ async function main() {
     username: appConfig.mqttUsername,
     password: appConfig.mqttPassword,
     topic: appConfig.mqttTopic,
+    // Mỗi lần MQTT nối (lại): gửi lại công thức máy chủ đã học cho các trạm (phòng lỡ mất lúc rớt mạng).
+    onConnect: () => {
+      republishLatestServerModels().catch((error: unknown) => console.error('[mqtt] Lỗi khi gửi lại công thức:', error));
+    },
   });
+  setMqttClient(mqttClient);
+
+  const stopRetraining = appConfig.modelAutoRetrain ? scheduleDailyRetraining(appConfig.modelRetrainTime) : () => {};
+  if (!appConfig.modelAutoRetrain) console.log('[train] Đã tắt tự học mỗi ngày (MODEL_AUTO_RETRAIN=false)');
 
   // Tắt gọn gàng khi bấm Ctrl+C hoặc Docker dừng container (để DB nhúng không bị hỏng).
   const shutdown = async () => {
     console.log('Đang tắt backend...');
+    stopRetraining();
     mqttClient.end(true);
     httpServer.close();
     await database.close();

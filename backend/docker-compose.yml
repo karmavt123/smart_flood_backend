@@ -1,7 +1,7 @@
 # =====================================================================
 # CHẠY BACKEND TRÊN MÁY CHỦ: 3 phần chạy cùng nhau
 #   postgres  - cơ sở dữ liệu
-#   mosquitto - broker MQTT, gateway LoRa gửi dữ liệu vào đây (cổng 1883)
+#   mosquitto - broker MQTT: các trạm gửi số đo vào đây (cổng 1883), backend gửi hệ số công thức xuống trạm
 #   api       - backend SmartFlood (cổng 3000): API cho app + trang /admin + realtime
 #
 # Cách chạy:  cp .env.production.example .env  → sửa mật khẩu trong .env  → docker compose up -d --build
@@ -29,7 +29,7 @@ services:
     environment:
       MQTT_BACKEND_PASSWORD: ${MQTT_BACKEND_PASSWORD:?Chưa đặt MQTT_BACKEND_PASSWORD trong .env}
       MQTT_GATEWAY_PASSWORD: ${MQTT_GATEWAY_PASSWORD:?Chưa đặt MQTT_GATEWAY_PASSWORD trong .env}
-    # Mỗi lần khởi động: tạo lại file mật khẩu từ .env cho 2 tài khoản (backend chỉ được đọc, gateway chỉ được ghi — xem mosquitto/acl).
+    # Mỗi lần khởi động: tạo lại file mật khẩu từ .env cho 2 tài khoản (trạm: ghi số đo + đọc hệ số; backend: ngược lại — xem mosquitto/acl).
     command: >
       sh -c 'mosquitto_passwd -c -b /mosquitto/data/passwd smartflood-backend "$$MQTT_BACKEND_PASSWORD" &&
              mosquitto_passwd -b /mosquitto/data/passwd smartflood-gateway "$$MQTT_GATEWAY_PASSWORD" &&
@@ -61,6 +61,11 @@ services:
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Chưa đặt ADMIN_API_KEY trong .env}
       OSRM_URL: ${OSRM_URL:-https://router.project-osrm.org}
       OVERPASS_URL: ${OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      MODEL_AUTO_RETRAIN: ${MODEL_AUTO_RETRAIN:-true}
+      MODEL_RETRAIN_TIME: ${MODEL_RETRAIN_TIME:-00:30}
+      MODEL_TRAINING_DAYS: ${MODEL_TRAINING_DAYS:-30}
+      MODEL_MIN_SAMPLES: ${MODEL_MIN_SAMPLES:-30}
+      MODEL_PRIOR_WEIGHT: ${MODEL_PRIOR_WEIGHT:-0.2}
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       TRUST_PROXY: ${TRUST_PROXY:-false}
     ports:

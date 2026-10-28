@@ -1,6 +1,9 @@
 {
   "id": "A01",
+  "date": "2026-10-28",
+  "time": "14:05:30",
   "water_level_mm": 0,
+  "rise_rate_mm_min": 0,
   "rain_mm": 0,
   "tide_m": 1.2
 }

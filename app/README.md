@@ -2,16 +2,17 @@
 
 App điện thoại của đề tài **"SMARTFLOOD – Hệ thống IoT giám sát, cảnh báo sớm và hỗ trợ định tuyến tránh ngập đô thị"**.
 
-App lấy dữ liệu từ **backend SmartFlood mới** (thư mục `smartflood-backend` nằm cạnh thư mục app, xem README của backend). Mỗi node đo ngập gửi dữ liệu qua LoRa → gateway → MQTT lên backend; backend lưu lại và đẩy xuống app. **App không cần tài khoản**: mở lên là dùng. App làm các chức năng trong tài liệu `SmartFlood_App_Requirements.pdf` (FR-01 → FR-15), riêng phần đăng nhập đã bỏ theo yêu cầu mới. **Màn Bản đồ là màn chính: mở app là thấy ngay tình hình ngập quanh mình.** App chạy được trên **điện thoại** (qua app Expo Go) và trên **laptop** (qua trình duyệt, xem mục 2 phần cuối).
+App lấy dữ liệu từ **backend SmartFlood mới** (thư mục `smartflood-backend` nằm cạnh thư mục app, xem README của backend). Mỗi trạm đo ngập (ESP32) tự bắt Wi-Fi và gửi dữ liệu qua MQTT lên backend, 5 phút 1 lần; backend lưu lại, đẩy xuống app, và mỗi đêm học lại công thức dự báo rồi gửi hệ số mới về trạm. **App không cần tài khoản**: mở lên là dùng. App làm các chức năng trong tài liệu `SmartFlood_App_Requirements.pdf` (FR-01 → FR-15), riêng phần đăng nhập đã bỏ theo yêu cầu mới. **Màn Bản đồ là màn chính: mở app là thấy ngay tình hình ngập quanh mình.** App chạy được trên **điện thoại** (qua app Expo Go) và trên **laptop** (qua trình duyệt, xem mục 2 phần cuối).
 
 ```
-Node đo ngập ──LoRa──▶ Gateway ──MQTT──▶ Backend SmartFlood ──API + Socket.IO──▶ App (đây)
- (mực nước ngập, mưa,               (đổi đơn vị, lưu PostgreSQL,         (Quanh bạn, bản đồ,
-  triều, nhiệt độ)                   tính mức ngập, đường ngập,          cảnh báo, tuyến đường)
-                                     kiểm tra tuyến)
+Trạm đo ngập ──Wi-Fi + MQTT──▶ Backend SmartFlood ──API + Socket.IO──▶ App (đây)
+             ◀── hệ số công thức mới (mỗi đêm) ──
+ (mực nước ngập, tốc độ dâng,       (đổi đơn vị, lưu PostgreSQL,         (Quanh bạn, bản đồ,
+  mưa, triều, dự báo 5 phút)         tính mức ngập, đường ngập,          cảnh báo, tuyến đường)
+                                     kiểm tra tuyến, học lại công thức)
 ```
 
-**Trạm thật hiện có:** A01, A02. Mỗi lần đo trạm gửi: mực nước ngập (mm), lượng mưa (mm), cường độ mưa (mm/giây), thủy triều (m), nhiệt độ (°C), giờ đo. Backend đổi đơn vị rồi gửi xuống app; app hiện **mực nước ngập (cm)**, **lượng mưa (mm)**, **cường độ mưa (mm/h)**, **thủy triều (m)**, **nhiệt độ**. Trạm **chưa gửi dự đoán**, nên phần dự đoán / công thức ghi "Trạm chưa có dự đoán" (sẽ bổ sung sau).
+**Trạm thật hiện có:** A01, A02. Từ 28/10/2026 (gói tin bản 3.0) mỗi lần đo trạm gửi: mực nước ngập (mm), **tốc độ dâng (mm/phút)**, lượng mưa (mm), thủy triều (m), giờ đo, và khi đã có công thức thì thêm **độ ngập dự báo 5 phút tới** + số phiên bản công thức. Backend đổi đơn vị rồi gửi xuống app; app hiện **mực nước ngập (cm)**, **tốc độ dâng**, **lượng mưa**, **thủy triều (m)**, dự báo và công thức. Trạm **chưa có công thức** (máy chủ chưa đủ dữ liệu lúc đường ngập để học) thì app ghi thật "Trạm chưa có dự đoán". Gói tin bản 2.0 (có cường độ mưa, nhiệt độ) vẫn hiện bình thường.
 
 ---
 
@@ -41,7 +42,7 @@ Node đo ngập ──LoRa──▶ Gateway ──MQTT──▶ Backend SmartFlo
 | **! Cảnh báo** | Các trạm đang từ mức Cảnh báo trở lên, và các lần trạm tăng mức ngập nhận được trong lần mở app này. |
 | **≡ Trạm** | Danh sách trạm: tìm theo tên (gõ không dấu cũng được), lọc, sắp xếp theo độ ngập, cập nhật mới nhất hoặc khoảng cách. |
 | **⚙ Cài đặt** | Bật/tắt thông báo, trạng thái quyền thông báo, các trạm đang theo dõi (lưu trên máy), địa chỉ máy chủ. |
-| Chi tiết trạm | Độ ngập, **thông số đo** (lượng mưa, cường độ mưa, thủy triều, nhiệt độ — chỉ hiện thông số trạm có gửi), biểu đồ lịch sử 1 giờ / 24 giờ / 7 ngày kèm nút **Xuất CSV** (laptop: tải file về; điện thoại: mở bảng Chia sẻ), dự đoán và **công thức dự đoán riêng của trạm** (hiện "Trạm chưa có dự đoán" khi trạm chưa gửi), vị trí, nút theo dõi. |
+| Chi tiết trạm | Độ ngập, **thông số đo** (tốc độ dâng, lượng mưa, thủy triều… — chỉ hiện thông số trạm có gửi), biểu đồ lịch sử 1 giờ / 24 giờ / 7 ngày kèm nút **Xuất CSV** (laptop: tải file về; điện thoại: mở bảng Chia sẻ), dự đoán 5 phút tới và **công thức dự đoán riêng của trạm** (máy chủ học hay trạm gửi, đã gửi về trạm chưa, so với phiên bản trước; hiện "Trạm chưa có dự đoán" khi chưa có), vị trí, nút theo dõi. |
 | Giới thiệu | Chỉ hiện ở lần mở đầu tiên. |
 
 Các quy tắc an toàn app tuân theo (lấy từ tài liệu yêu cầu, mục 2.2):
@@ -326,7 +327,7 @@ Lần đầu nó hỏi có cài `@expo/ngrok` không thì gõ `y`, Enter. Cách 
 
 ### Bước 9. Thử nhanh các chức năng chính
 
-1. Mở app: bản đồ zoom vào chỗ mình đứng, có vòng 2 km; thẻ **"Quanh bạn"** báo có ngập gần đây không. Chưa có node thật gần mình thì chạy thêm `npm run fake-node -- --lat <vĩ độ> --lng <kinh độ>` bên backend (README backend, mục 2) để có node thử quanh mình.
+1. Mở app: bản đồ zoom vào chỗ mình đứng, có vòng 2 km; thẻ **"Quanh bạn"** báo có ngập gần đây không. Chưa có node thật gần mình thì chạy thêm `npm run fake-node -- --lat <vĩ độ> --lng <kinh độ>` bên backend (README backend, mục 2) để có node thử quanh mình. Muốn trình diễn **gửi 1 gói tin và thấy app đổi ngay**: README backend, mục 2, **Bước 6**.
 2. Chạm 1 điểm ngập trong thẻ "Quanh bạn" → bản đồ bay tới trạm đó, thấy đoạn đường bị tô màu. Bấm **Xem chi tiết** → biểu đồ lịch sử, dự đoán, công thức riêng của trạm.
 3. Chạm giữ một chỗ khác trên bản đồ → app xem ngập quanh chỗ đó. Bấm **◎** để quay về.
 4. Bấm nút **⇄**, chạm giữ trên bản đồ để chọn điểm A, chạm giữ lần nữa chọn điểm B, rồi bấm **Kiểm tra tuyến**.
@@ -569,7 +570,7 @@ smartflood-app/
 │   │   ├── floodLevelStyles.ts                     # Màu, ký hiệu, chữ của từng mức ngập
 │   │   ├── historyRanges.ts                        # Các khoảng xem lịch sử: 1 giờ, 24 giờ, 7 ngày
 │   │   ├── mapGestureText.ts                       # Chữ hướng dẫn chọn điểm: "chạm giữ" (điện thoại) / "bấm chuột phải" (laptop)
-│   │   ├── modelVariables.ts                       # Ý nghĩa các biến trong công thức (H, V, T, RH, L...)
+│   │   ├── modelVariables.ts                       # Ý nghĩa các biến trong công thức (H, V, R, S; T, RH, L của công thức cũ)
 │   │   └── sensorMetrics.ts                        # ★ Danh sách thông số đo: tên, đơn vị, số chữ số lẻ
 │   ├── demo/                                       # Dữ liệu mẫu cho CHẾ ĐỘ DEMO (không cần mạng)
 │   │   ├── demoNearby.ts                           # "Quanh bạn" mẫu
@@ -673,7 +674,7 @@ smartflood-app/
 Ví dụ: **node Q.1 gửi độ ngập mới, bản đồ đổi màu**.
 
 ```
-1. Node gửi số đo ──LoRa → gateway → MQTT──▶ backend lưu lại, phát sự kiện Socket.IO "station:update" (gửi nguyên cả trạm)
+1. Trạm gửi số đo ──Wi-Fi + MQTT──▶ backend lưu lại, phát sự kiện Socket.IO "station:update" (gửi nguyên cả trạm)
 2. src/api/realtime/connectRealtimeSocket.ts      nhận sự kiện
 3. src/api/mappers/toStation.ts                   đổi JSON → Station
 4. src/state/RealtimeProvider.tsx                 lưu bản mới nhất của từng trạm; mức ngập TĂNG thì tạo cảnh báo
@@ -784,7 +785,7 @@ src/app/station/[nodeId].tsx
 | FR-05 | Danh sách trạm (P0 + P1) | ✅ | `app/(tabs)/stations.tsx`, `utils/filterStations.ts`, `searchStations.ts`, `sortStations.ts` | Có nút "Xóa bộ lọc" khi không có kết quả |
 | FR-06 | Chi tiết trạm và realtime | ✅ | `app/station/[nodeId].tsx`, `state/RealtimeProvider.tsx`, `utils/mergeLiveStations.ts` | Kết nối lại thì tải lại danh sách trạm ngay |
 | FR-07 | Biểu đồ lịch sử | ✅ | `components/station/SensorHistoryCard.tsx`, `components/charts/HistoryLineChart.tsx` | Độ ngập, lượng mưa, cường độ mưa, triều, nhiệt độ (chỉ hiện nút cho thông số trạm có gửi). Ngắt đường ở chỗ thiếu dữ liệu. Xuất CSV toàn bộ số đo trong khoảng đang xem. ⬜ Tự chọn khoảng thời gian (P1) |
-| FR-08 | Dự báo | ⬜ chờ dữ liệu | `components/forecast/NodePredictionCard.tsx`, `components/station/StationModelCard.tsx` | App đã sẵn chỗ hiện dự đoán + công thức + các phiên bản; trạm A01, A02 **chưa gửi dự đoán** nên đang hiện "Trạm chưa có dự đoán" |
+| FR-08 | Dự báo | 🟨 chờ dữ liệu thật | `components/forecast/NodePredictionCard.tsx`, `components/station/StationModelCard.tsx` | App hiện dự đoán 5 phút tới + công thức + các phiên bản. Máy chủ học lại công thức mỗi đêm và gửi về trạm (đã chạy thử với trạm ảo TEST-A01). Trạm A01, A02 chưa có đủ dữ liệu lúc ngập để học nên đang hiện "Trạm chưa có dự đoán" |
 | FR-09 | Theo dõi trạm | ✅ | `components/station/FollowButton.tsx`, `state/FavoritesProvider.tsx` | Lưu **trên máy** (không còn tài khoản) |
 | FR-10 | Push và mở đúng trạm | 🟡 | `notifications/*`, `components/alerts/RealtimeAlertBanner.tsx` | Backend **chưa gửi Push**. App hiện dải cảnh báo và thông báo khi app đang chạy; chạm vào mở đúng trạm |
 | FR-11 | Trung tâm cảnh báo | 🟡 | `app/(tabs)/alerts.tsx`, `components/alerts/*` | Trạm đang cảnh báo + cảnh báo nhận trong lần mở app. ⬜ Lịch sử cảnh báo lưu trên máy chủ, ⬜ lọc (P1) |
@@ -810,7 +811,7 @@ src/app/station/[nodeId].tsx
 | Hình dạng đường lấy từ OpenStreetMap (dịch vụ Overpass miễn phí) | Lỗi hoặc quá tải thì app vẽ **vòng tròn vùng ảnh hưởng** thay cho tô màu đường, và ghi chú trong thẻ "Quanh bạn" |
 | Chưa có thông báo đẩy (Push) | Thông báo trên máy và dải cảnh báo chỉ có khi app đang chạy |
 | Không có tài khoản | Trạm theo dõi, cài đặt thông báo lưu trên từng máy; đổi máy phải chọn lại |
-| **Chưa có dự đoán** | Trạm A01, A02 chỉ gửi số đo. App đã có sẵn thẻ dự đoán + công thức, trạm (hoặc máy chủ) gửi dự đoán thì tự hiện |
+| **Chưa có dự đoán ở trạm thật** | Công thức chỉ học được khi có ít nhất ~2,5 giờ dữ liệu lúc đường ngập. Trạm ảo `TEST-...` thì có (dữ liệu mô phỏng, không đưa vào báo cáo) |
 | Một số ý nghĩa số đo chưa chốt với bên IoT | Mực nước đo so với mặt đường hay mốc khác, lượng mưa cộng dồn từ lúc nào... (xem `IOT_DATA_FORMAT.md` của backend, mục 8). Nhãn trên app có thể phải sửa lại |
 | Vị trí trên laptop | Trình duyệt đoán vị trí qua Wi-Fi, có thể lệch; chuột phải lên bản đồ để chọn đúng chỗ |
 
@@ -858,7 +859,7 @@ src/app/station/[nodeId].tsx
 - [ ] Điện thoại dùng để thuyết trình là iPhone thì đã đăng nhập **cùng một tài khoản Expo** trên máy tính (`npx expo whoami`) và trên Expo Go.
 - [ ] `.env.local` đã ghi đúng địa chỉ backend anh mentor deploy (không phải `localhost`). Mở app thấy thẻ "Quanh bạn" và các trạm thật.
 - [ ] Thuyết trình bằng laptop: đã chạy `npm run web` trên **đúng laptop đó**, bản đồ có đường phố, vòng 2 km đúng chỗ (lệch thì chuột phải chọn lại), thử chuột phải chọn A/B kiểm tra tuyến.
-- [ ] Mở chi tiết trạm A01/A02: thấy đủ mực nước, lượng mưa, cường độ mưa, thủy triều, nhiệt độ. Chuẩn bị câu trả lời nếu giám khảo hỏi phần dự đoán (hiện "Trạm chưa có dự đoán").
+- [ ] Mở chi tiết trạm A01/A02: thấy đủ mực nước, tốc độ dâng, lượng mưa, thủy triều. Chuẩn bị câu trả lời nếu giám khảo hỏi phần dự đoán: máy chủ học lại công thức mỗi đêm, trạm thật chưa đủ dữ liệu ngập nên hiện "Trạm chưa có dự đoán"; demo vòng học bằng trạm ảo TEST-A01 + nút "Học lại ngay" ở trang admin.
 - [ ] Chạm trạm → Xem chi tiết → biểu đồ có dữ liệu.
 - [ ] Thử kiểm tra một tuyến đường.
 - [ ] Đã thử **chế độ DEMO** trên đúng điện thoại sẽ dùng để thuyết trình (phòng khi mạng ở hội trường yếu).

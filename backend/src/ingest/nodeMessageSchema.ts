@@ -23,9 +23,11 @@ const nodeIdValue = z
 /**
  * KHUÔN DỮ LIỆU 1 TIN NHẮN node gửi lên (đặc tả đầy đủ cho bên IoT: IOT_DATA_FORMAT.md).
  *
- * Nhận 2 KIỂU TÊN TRƯỜNG:
- *   - Kiểu mới (gói tin thật của bên IoT, từ 26/10/2026):
- *       id, time, water_level_mm, rain_mm, rain_rate_mm_s, tide_m, temperature_c
+ * Nhận các KIỂU TÊN TRƯỜNG:
+ *   - Bản 3.0 (từ 28/10/2026, trạm gửi thẳng qua Wi-Fi, 5 phút 1 lần):
+ *       id, time, water_level_mm, rise_rate_mm_min, rain_mm, tide_m,
+ *       predicted_water_level_mm, model_version (+ model khi vừa bật máy / vừa nhận công thức mới)
+ *   - Bản 2.0 (26/10/2026): id, time, water_level_mm, rain_mm, rain_rate_mm_s, tide_m, temperature_c
  *   - Kiểu cũ (vẫn nhận, để không phải sửa lại dữ liệu đã có):
  *       node_id, measured_at, flood_depth_cm, rain_mm_1h, tide_cm
  * Ở đây trường nào cũng là "không bắt buộc"; việc kiểm tra đủ ngập / mưa / triều làm ở parseNodeMessage
@@ -44,6 +46,11 @@ export const nodeMessageSchema = z.object({
   // --- mực nước ngập (bắt buộc 1 trong 2) ---
   water_level_mm: optionalNumber(-200, 5000), // kiểu mới, mm
   flood_depth_cm: optionalNumber(-20, 500), // kiểu cũ, cm
+
+  // --- bản 3.0: tốc độ dâng + dự báo trạm tự tính ---
+  rise_rate_mm_min: optionalNumber(-1000, 1000), // (mực nước bây giờ − 5 phút trước) ÷ 5, mm/phút; âm = nước đang rút
+  predicted_water_level_mm: optionalNumber(-200, 5000), // độ ngập trạm dự báo sau 5 phút, mm
+  model_version: optionalInteger(1, 1_000_000), // trạm đang dự báo bằng phiên bản công thức nào
 
   // --- mưa (bắt buộc ít nhất 1 trong 4) ---
   rain_mm: optionalNumber(0, 100_000), // lượng mưa (mm)

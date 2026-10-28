@@ -16,6 +16,7 @@ export function toSensorReading(raw: any, nodeId: string): SensorReading | null 
     nodeId,
     timestamp: raw.measuredAt,
     waterLevelCm: toNumberOrNull(raw.floodDepthCm),
+    riseRateMmMin: toNumberOrNull(raw.riseRateMmMin),
     rainMm: toNumberOrNull(raw.rainMm),
     rainRateMmH: toNumberOrNull(raw.rainRateMmH),
     rainMm1h: toNumberOrNull(raw.rainMm1h),

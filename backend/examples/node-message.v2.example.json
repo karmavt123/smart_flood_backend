@@ -1,0 +1,9 @@
+{
+  "id": "A01",
+  "time": "14:05:30",
+  "water_level_mm": 125,
+  "rain_mm": 12.5,
+  "rain_rate_mm_s": 0.004,
+  "tide_m": 1.35,
+  "temperature_c": 29.4
+}

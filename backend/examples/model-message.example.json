@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "horizon_min": 5,
+  "intercept": 1.2,
+  "coef": { "H": 0.97, "V": 4.9, "R": 0.03, "S": 2.1 },
+  "trained_at": "2026-10-28T17:30:05.000Z",
+  "samples": 146,
+  "mae_mm": 3.4
+}

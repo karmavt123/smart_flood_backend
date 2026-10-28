@@ -39,4 +39,16 @@ export const appConfig = {
 
   corsOrigin: readText('CORS_ORIGIN', '*'),
   trustProxy: readText('TRUST_PROXY') === 'true',
+
+  // --- Máy chủ học lại công thức dự đoán (xem src/training/) ---
+  /** false = tắt tự học mỗi ngày (vẫn bấm "Học lại ngay" ở trang admin được). */
+  modelAutoRetrain: readText('MODEL_AUTO_RETRAIN', 'true') !== 'false',
+  /** Giờ tự học mỗi ngày, theo giờ Việt Nam, dạng "HH:MM". */
+  modelRetrainTime: readText('MODEL_RETRAIN_TIME', '00:30'),
+  /** Học từ dữ liệu bao nhiêu ngày gần nhất. */
+  modelTrainingDays: readNumber('MODEL_TRAINING_DAYS', 30),
+  /** Cần ít nhất bao nhiêu cặp mẫu ĐANG NGẬP mới học (30 cặp × 5 phút = 2,5 giờ ngập). */
+  modelMinSamples: readNumber('MODEL_MIN_SAMPLES', 30),
+  /** Hệ số cũ nặng bao nhiêu so với dữ liệu mới: 0 = bỏ hẳn hệ số cũ, 1 = ngang với toàn bộ dữ liệu mới. */
+  modelPriorWeight: readNumber('MODEL_PRIOR_WEIGHT', 0.2),
 };

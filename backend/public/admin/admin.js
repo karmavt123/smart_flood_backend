@@ -8,7 +8,19 @@ const API = '/api/v1/admin';
 const KEY_STORAGE = 'smartflood-admin-key';
 const LEVEL_TEXT = { normal: 'An toàn', warning: 'Cảnh báo', danger: 'Nguy hiểm', critical: 'Rất nguy hiểm', unknown: 'Chưa có' };
 const CONN_TEXT = { online: 'Đang hoạt động', slow: 'Chậm dữ liệu', offline: 'Mất kết nối', nodata: 'Chưa có dữ liệu' };
-const VARIABLE_TEXT = { H: 'mực nước hiện tại', V: 'tốc độ dâng (cm/phút)', T: 'nhiệt độ', RH: 'độ ẩm', L: 'ánh sáng', R: 'mưa', S: 'triều' };
+// Ý nghĩa các biến trong công thức. Bản 3.0: hệ số dùng đúng đơn vị trong gói tin của trạm (mm, mm/phút, mm, m).
+const VARIABLE_TEXT = {
+  H: 'độ ngập hiện tại (mm)',
+  V: 'tốc độ dâng (mm/phút)',
+  R: 'lượng mưa (mm)',
+  S: 'thủy triều (m)',
+  T: 'nhiệt độ (công thức cũ)',
+  RH: 'độ ẩm (công thức cũ)',
+  L: 'ánh sáng (công thức cũ)',
+};
+const SOURCE_TEXT = { server: 'Máy chủ học', node: 'Trạm gửi lên' };
+const RUN_STATUS_TEXT = { published: '✓ Có công thức mới', skipped: 'Giữ công thức cũ', failed: '✗ Lỗi' };
+const TRIGGER_TEXT = { auto: 'Tự động mỗi ngày', manual: 'Bấm "Học lại ngay"' };
 
 let adminKey = readKey();
 let nodes = [];
@@ -61,6 +73,7 @@ const num = (value, unit = '') => (value === null || value === undefined ? '—'
 const levelBadge = (level) => el('span', { className: `level ${level}` }, LEVEL_TEXT[level] || level);
 const has = (value) => value !== null && value !== undefined;
 /** Thủy triều: DB lưu cm, hiển thị theo mét giống gói tin bên IoT. */
+const riseText = (v) => (has(v) ? `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10} mm/ph` : '—');
 const tideText = (cm) => (has(cm) ? `${(cm / 100).toFixed(2)} m` : '—');
 /** Mưa: lượng mưa (mm) của gói tin mới; gói tin kiểu cũ thì là tổng mưa 60 phút. */
 const rainText = (r) => (has(r.rainMm) ? num(r.rainMm, ' mm') : has(r.rainMm1h) ? `${num(r.rainMm1h, ' mm')} /1h` : '—');
@@ -110,7 +123,7 @@ async function loadNodes() {
 }
 
 function renderNodesTable() {
-  const head = el('tr', {}, ['Mã node', 'Tên', 'Vị trí', 'Kết nối', 'Lần cuối', 'Ngập', 'Mức', 'Dự đoán', 'Lượng mưa', 'Cường độ mưa', 'Triều', 'Nhiệt độ', 'Công thức', ''].map((t) => el('th', {}, t)));
+  const head = el('tr', {}, ['Mã node', 'Tên', 'Vị trí', 'Kết nối', 'Lần cuối', 'Ngập', 'Tốc độ dâng', 'Mức', 'Dự đoán', 'Lượng mưa', 'Cường độ mưa', 'Triều', 'Nhiệt độ', 'Công thức', ''].map((t) => el('th', {}, t)));
   const rows = nodes.map((n) => {
     const r = n.latest;
     const isTest = r && r.extra && r.extra.is_test === true;
@@ -123,6 +136,7 @@ function renderNodesTable() {
       el('td', { className: `conn ${n.connectionState}` }, CONN_TEXT[n.connectionState]),
       el('td', {}, timeAgo(n.lastSeenAt)),
       el('td', {}, r ? num(r.floodDepthCm, ' cm') : '—'),
+      el('td', {}, r ? riseText(r.riseRateMmMin) : '—'),
       el('td', {}, levelBadge(n.floodLevel)),
       el('td', {}, r && r.predictedDepthCm !== null ? `${num(r.predictedDepthCm, ' cm')} (+${r.forecastMinutes}′)` : '—'),
       el('td', {}, r ? rainText(r) : '—'),
@@ -149,9 +163,10 @@ async function openDetail(nodeId) {
   const box = document.getElementById('node-detail');
   box.replaceChildren(el('div', { className: 'card' }, el('p', { className: 'muted' }, 'Đang tải...')));
 
-  const [readings, models] = await Promise.all([
+  const [readings, models, training] = await Promise.all([
     fetch(`/api/v1/stations/${encodeURIComponent(nodeId)}/readings?hours=2160&limit=50`).then((r) => r.json()),
     fetch(`/api/v1/stations/${encodeURIComponent(nodeId)}/models`).then((r) => r.json()),
+    api(`${API}/nodes/${encodeURIComponent(nodeId)}/training-runs?limit=10`),
   ]);
 
   const inputs = {
@@ -208,15 +223,49 @@ async function openDetail(nodeId) {
     el('div', { className: 'full' }, message),
   );
 
-  const modelRows = models.models.map((m) =>
+  // Mới nhất lên đầu.
+  const modelRows = models.models.slice().reverse().map((m) =>
     el('tr', {},
       el('td', {}, `v${m.version}`),
+      el('td', {}, SOURCE_TEXT[m.source] || m.source),
       el('td', { className: 'wrap' }, el('div', { className: 'formula' }, formulaText(m))),
       el('td', {}, m.samples ?? '—'),
       el('td', {}, num(m.maeCm, ' cm')),
       el('td', {}, num(m.r2)),
-      el('td', {}, clock(m.trainedAt)),
-      el('td', {}, clock(m.firstSeenAt)),
+      el('td', {}, clock(m.trainedAt ?? m.firstSeenAt)),
+      el('td', {}, m.source === 'server' ? (m.publishedAt ? clock(m.publishedAt) : el('span', { className: 'error' }, 'chưa gửi được')) : '—'),
+      el('td', {}, m.appliedAt ? clock(m.appliedAt) : m.source === 'server' ? el('span', { className: 'muted' }, 'chờ trạm báo') : '—'),
+    ),
+  );
+
+  // Nút "Học lại ngay": máy chủ học lại công thức cho trạm này ngay lúc bấm.
+  const retrainResult = el('pre', { className: 'result' });
+  const retrainButton = el('button', {
+    type: 'button',
+    onClick: async () => {
+      retrainButton.disabled = true;
+      retrainResult.textContent = 'Đang học...';
+      try {
+        const result = await api(`${API}/nodes/${encodeURIComponent(nodeId)}/retrain`, { method: 'POST' });
+        retrainResult.textContent = `${RUN_STATUS_TEXT[result.run.status]}: ${result.run.reason}`;
+        setTimeout(() => openDetail(nodeId), 1500); // tải lại bảng công thức + nhật ký
+      } catch (error) {
+        retrainResult.textContent = `✗ ${error.message}`;
+      } finally {
+        retrainButton.disabled = false;
+      }
+    },
+  }, 'Học lại ngay');
+
+  const runRows = training.runs.map((run) =>
+    el('tr', {},
+      el('td', {}, clock(run.startedAt)),
+      el('td', {}, TRIGGER_TEXT[run.trigger] || run.trigger),
+      el('td', { className: run.status === 'failed' ? 'error' : '' }, RUN_STATUS_TEXT[run.status] || run.status, run.newVersion ? ` v${run.newVersion}` : ''),
+      el('td', {}, has(run.samplesUsed) ? `${run.samplesUsed} / ${run.pairsTotal}` : '—'),
+      el('td', {}, num(run.maeNewCm, ' cm')),
+      el('td', {}, has(run.maeOldCm) ? num(run.maeOldCm, ' cm') : has(run.maeBaselineCm) ? `${num(run.maeBaselineCm, ' cm')} (đoán "giữ nguyên")` : '—'),
+      el('td', { className: 'wrap' }, run.reason),
     ),
   );
   // Bảng lần đo: chỉ hiện cột có dữ liệu (node A01/A02 không gửi độ ẩm, ánh sáng, pin... thì ẩn cột đó).
@@ -231,10 +280,17 @@ async function openDetail(nodeId) {
     el('div', { className: 'card' },
       el('div', { className: 'card-head' }, el('h2', { id: 'detail-title' }, `${node.nodeId} · ${node.name}`), el('span', { className: 'muted', id: 'detail-sub' })),
       form,
-      el('h3', {}, 'Các phiên bản công thức (node tự học rồi gửi lên)'),
+      el('h3', {}, 'Công thức dự đoán (máy chủ học lại mỗi ngày, gửi hệ số mới về trạm)'),
+      el('p', { className: 'muted' }, 'Ĥ(t+5 phút) = a0 + a1·H + a2·V + a3·R + a4·S. Máy chủ chỉ học lúc đường đang ngập, và chỉ nhận công thức mới khi sai số nhỏ hơn công thức đang dùng.'),
+      el('div', { className: 'row' }, retrainButton),
+      retrainResult,
       models.models.length
-        ? el('div', { className: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Phiên bản', 'Công thức', 'Số mẫu', 'MAE', 'R²', 'Node học xong lúc', 'Máy chủ nhận lúc'].map((t) => el('th', {}, t)))), el('tbody', {}, modelRows)))
-        : el('p', { className: 'muted' }, 'Node chưa gửi công thức (trường "model").'),
+        ? el('div', { className: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Phiên bản', 'Từ đâu', 'Công thức', 'Số mẫu', 'Sai số (MAE)', 'R²', 'Học xong lúc', 'Gửi về trạm lúc', 'Trạm bắt đầu dùng'].map((t) => el('th', {}, t)))), el('tbody', {}, modelRows)))
+        : el('p', { className: 'muted' }, 'Trạm chưa có công thức nào. Bấm "Học lại ngay" khi trạm đã có dữ liệu lúc đường ngập (ít nhất khoảng 2,5 giờ).'),
+      el('h3', {}, 'Nhật ký học lại (10 lần gần nhất)'),
+      training.runs.length
+        ? el('div', { className: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, ['Lúc', 'Cách chạy', 'Kết quả', 'Mẫu ngập / tổng cặp', 'Sai số mới', 'Sai số để so', 'Giải thích'].map((t) => el('th', {}, t)))), el('tbody', {}, runRows)))
+        : el('p', { className: 'muted' }, 'Chưa học lần nào.'),
       el('h3', {}, '50 lần đo gần nhất'),
       readings.readings.length
         ? el('div', { className: 'table-wrap' }, el('table', {}, el('thead', {}, el('tr', {}, readingColumns.map(([title]) => el('th', {}, title)))), el('tbody', {}, readingRows)))
@@ -249,6 +305,7 @@ const renderExtra = (r) => (Object.keys(r.extra || {}).length ? JSON.stringify(r
 const READING_COLUMNS = [
   ['Thời điểm đo', (r) => [clock(r.measuredAt), r.timeSource === 'server' ? el('span', { className: 'tag' }, 'giờ máy chủ') : null], null],
   ['Ngập', (r) => num(r.floodDepthCm, ' cm'), null],
+  ['Tốc độ dâng', (r) => riseText(r.riseRateMmMin), (r) => r.riseRateMmMin],
   ['Dự đoán', (r) => num(r.predictedDepthCm, ' cm'), (r) => r.predictedDepthCm],
   ['Lượng mưa', (r) => num(r.rainMm, ' mm'), (r) => r.rainMm],
   ['Cường độ mưa', (r) => num(r.rainRateMmH, ' mm/h'), (r) => r.rainRateMmH],
@@ -276,10 +333,13 @@ function closeDetail() {
   renderNodesTable();
 }
 
-/** Viết công thức thành chữ: Ĥ(t+5) = 0.15 + 0.985·H + 4.8·V + ... */
+/** Viết công thức thành chữ: Ĥ(t+5 phút) = 1.2 + 0.97·H + 4.9·V + 0.03·R + 2.1·S */
+const VARIABLE_ORDER = ['H', 'V', 'R', 'S', 'T', 'RH', 'L'];
 function formulaText(model) {
-  const parts = Object.entries(model.coefficients).map(([name, value]) => `${value >= 0 ? '+' : '−'} ${Math.abs(value)}·${name}`);
-  const legend = Object.keys(model.coefficients).map((name) => `${name} = ${VARIABLE_TEXT[name] || name}`).join(', ');
+  const rank = (name) => (VARIABLE_ORDER.includes(name) ? VARIABLE_ORDER.indexOf(name) : 99);
+  const names = Object.keys(model.coefficients).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+  const parts = names.map((name) => { const value = model.coefficients[name]; return `${value >= 0 ? '+' : '−'} ${Math.abs(value)}·${name}`; });
+  const legend = names.map((name) => `${name} = ${VARIABLE_TEXT[name] || name}`).join(', ');
   return `Ĥ(t+${model.horizonMinutes ?? '?'} phút) = ${model.intercept} ${parts.join(' ')}   (${legend})`;
 }
 
@@ -304,15 +364,14 @@ async function loadErrors() {
 }
 
 // ---------- gửi thử ----------
-// Đúng kiểu gói tin bên IoT gửi (node A01/A02). Mã ND-THU-01 để khỏi lẫn dữ liệu thử vào node thật.
+// Đúng kiểu gói tin bản 3.0 trạm gửi (xem IOT_DATA_FORMAT.md). Mã ND-THU-01 để khỏi lẫn dữ liệu thử vào trạm thật.
 const EXAMPLE = {
   id: 'ND-THU-01',
   time: vietnamClockNow(),
   water_level_mm: 125,
+  rise_rate_mm_min: 2.4,
   rain_mm: 12.5,
-  rain_rate_mm_s: 0.004,
   tide_m: 1.35,
-  temperature_c: 29.4,
 };
 const testBox = document.getElementById('test-message');
 testBox.value = JSON.stringify(EXAMPLE, null, 2);

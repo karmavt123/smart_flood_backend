@@ -1,5 +1,5 @@
 [
-  { "id": "MAU-A01", "date": "2026-10-25", "time": "14:00:00", "water_level_mm": 0, "rain_mm": 0, "rain_rate_mm_s": 0, "tide_m": 1.10, "temperature_c": 30.1 },
-  { "id": "MAU-A01", "date": "2026-10-25", "time": "14:05:00", "water_level_mm": 24, "rain_mm": 1.1, "rain_rate_mm_s": 0.0035, "tide_m": 1.12, "temperature_c": 29.0 },
-  { "id": "MAU-A01", "date": "2026-10-25", "time": "14:10:00", "water_level_mm": 68, "rain_mm": 3.6, "rain_rate_mm_s": 0.0086, "tide_m": 1.13, "temperature_c": 28.2 }
+  { "id": "MAU-A01", "date": "2026-10-25", "time": "14:00:00", "water_level_mm": 0, "rain_mm": 0, "tide_m": 1.10 },
+  { "id": "MAU-A01", "date": "2026-10-25", "time": "14:05:00", "water_level_mm": 24, "rise_rate_mm_min": 4.8, "rain_mm": 1.1, "tide_m": 1.12 },
+  { "id": "MAU-A01", "date": "2026-10-25", "time": "14:10:00", "water_level_mm": 68, "rise_rate_mm_min": 8.8, "rain_mm": 3.6, "tide_m": 1.13 }
 ]

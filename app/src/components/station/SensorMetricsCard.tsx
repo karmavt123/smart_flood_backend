@@ -39,7 +39,7 @@ export function SensorMetricsCard({ reading }: { reading: SensorReading | null }
           )}
           <Text style={styles.muted}>
             Lần đo: {formatDateTime(reading.timestamp)}
-            {reading.rssiDbm !== null ? ` · sóng LoRa ${reading.rssiDbm} dBm` : ''}
+            {reading.rssiDbm !== null ? ` · sóng Wi-Fi ${reading.rssiDbm} dBm` : ''}
           </Text>
         </>
       )}

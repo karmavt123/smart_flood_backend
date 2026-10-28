@@ -7,6 +7,10 @@ export interface ParsedNodeMessage {
   timeSource: 'device' | 'server';
   /** Độ sâu nước ngập (cm) — node gửi water_level_mm thì đã chia 10. */
   floodDepthCm: number;
+  /** Tốc độ dâng trạm tự tính (mm/phút), âm = nước đang rút; null = trạm không gửi. */
+  riseRateMmMin: number | null;
+  /** Trạm đang dự báo bằng phiên bản công thức nào; null = chưa có công thức. */
+  modelVersion: number | null;
   /** Lượng mưa node đo (mm). */
   rainMm: number | null;
   /** Cường độ mưa (mm/giờ) — node gửi rain_rate_mm_s thì đã nhân 3600. */

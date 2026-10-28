@@ -5,10 +5,18 @@ import { getNodeIdFromTopic } from './getNodeIdFromTopic.js';
 import { mqttStatus } from './mqttStatus.js';
 
 /**
- * KẾT NỐI MQTT VÀ NGHE DỮ LIỆU NODE: gateway LoRa đẩy mỗi lần đo lên topic smartflood/nodes/<mã node>/data,
+ * KẾT NỐI MQTT VÀ NGHE DỮ LIỆU NODE: mỗi trạm (ESP32 + Wi-Fi) đẩy mỗi lần đo lên topic smartflood/nodes/<mã node>/data,
  * backend nhận và đưa cho handleNodeMessage xử lý. Mất kết nối thì thư viện tự nối lại sau 5 giây.
+ * Cùng kết nối này cũng dùng để GỬI hệ số mới xuống trạm (xem publishNodeModel.ts).
+ * `onConnect` chạy mỗi lần nối (lại) thành công — server.ts dùng để gửi lại công thức cho các trạm.
  */
-export function subscribeNodeMessages(options: { url: string; username: string; password: string; topic: string }) {
+export function subscribeNodeMessages(options: {
+  url: string;
+  username: string;
+  password: string;
+  topic: string;
+  onConnect?: () => void;
+}) {
   const client = mqtt.connect(options.url, {
     username: options.username || undefined,
     password: options.password || undefined,
@@ -25,6 +33,7 @@ export function subscribeNodeMessages(options: { url: string; username: string; 
     client.subscribe(options.topic, { qos: 1 }, (error) => {
       if (error) console.error(`[mqtt] Không đăng ký được topic: ${error.message}`);
     });
+    options.onConnect?.();
   });
   client.on('close', () => {
     if (mqttStatus.connected) console.warn('[mqtt] Mất kết nối, đang thử nối lại...');

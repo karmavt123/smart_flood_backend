@@ -6,6 +6,9 @@ import type { ModelDto } from '../types/StationDto.js';
 export function toModelDto(record: NodeModelRecord): ModelDto {
   return {
     version: record.version,
+    source: record.source ?? 'node',
+    publishedAt: toIsoString(record.published_at),
+    appliedAt: toIsoString(record.applied_at),
     trainedAt: toIsoString(record.trained_at),
     samples: record.samples,
     horizonMinutes: record.horizon_minutes,

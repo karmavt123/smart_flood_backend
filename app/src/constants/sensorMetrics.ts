@@ -7,6 +7,7 @@ import type { SensorReading } from '@/types/SensorReading';
  */
 export const sensorMetrics = [
   { key: 'waterLevelCm', label: 'Độ ngập', unit: 'cm', digits: 1, inCard: false },
+  { key: 'riseRateMmMin', label: 'Tốc độ dâng', unit: 'mm/phút', digits: 1, inCard: true },
   { key: 'rainMm', label: 'Lượng mưa', unit: 'mm', digits: 1, inCard: true },
   { key: 'rainRateMmH', label: 'Cường độ mưa', unit: 'mm/h', digits: 1, inCard: true },
   { key: 'rainMm1h', label: 'Mưa 1 giờ', unit: 'mm', digits: 1, inCard: true },

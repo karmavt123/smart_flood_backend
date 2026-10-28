@@ -2,6 +2,7 @@ import { isFloodingLevel } from '../domain/isFloodingLevel.js';
 import { broadcastStationUpdate } from '../realtime/realtimeHub.js';
 import { insertIngestError } from '../repositories/errors/insertIngestError.js';
 import { insertNodeModel } from '../repositories/models/insertNodeModel.js';
+import { markModelApplied } from '../repositories/models/markModelApplied.js';
 import { ensureNodeExists } from '../repositories/nodes/ensureNodeExists.js';
 import { setNodeLocationIfMissing } from '../repositories/nodes/setNodeLocationIfMissing.js';
 import { touchNodeLastMessage } from '../repositories/nodes/touchNodeLastMessage.js';
@@ -15,7 +16,7 @@ import { parseNodeMessage } from './parseNodeMessage.js';
 const MAX_PAYLOAD_BYTES = 16 * 1024;
 
 interface IncomingMessage {
-  /** mqtt = gateway gửi trực tiếp; admin-test = gửi thử ở trang admin; import = nhập dữ liệu cũ. */
+  /** mqtt = trạm gửi trực tiếp; admin-test = gửi thử ở trang admin; import = nhập dữ liệu cũ. */
   channel: 'mqtt' | 'admin-test' | 'import';
   topic: string | null;
   nodeIdFromTopic: string | null;
@@ -62,6 +63,8 @@ export async function handleNodeMessage(incoming: IncomingMessage): Promise<Inge
 
     if (isLive) {
       await touchNodeLastMessage(message.nodeId, receivedAt);
+      // Trạm báo đang dùng phiên bản nào → biết hệ số máy chủ gửi xuống đã tới trạm chưa.
+      if (message.modelVersion) await markModelApplied(message.nodeId, message.modelVersion, receivedAt);
       const [station] = await loadStations({ includeInactive: true, nodeId: message.nodeId });
       if (station?.isActive) {
         broadcastStationUpdate(station);

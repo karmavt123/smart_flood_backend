@@ -9,6 +9,8 @@ export interface ReadingDto {
   timeSource: 'device' | 'server';
   /** Độ sâu nước ngập (cm). */
   floodDepthCm: number;
+  /** Tốc độ dâng trạm tự tính (mm/phút), âm = đang rút; null = trạm không gửi. */
+  riseRateMmMin: number | null;
   /** Lượng mưa node đo (mm); null = node không gửi. */
   rainMm: number | null;
   /** Cường độ mưa (mm/giờ); null = node không gửi. */
@@ -32,6 +34,12 @@ export interface ReadingDto {
 /** 1 phiên bản công thức dự đoán của node, dạng gửi cho app. */
 export interface ModelDto {
   version: number;
+  /** "node" = trạm gửi lên; "server" = máy chủ học từ dữ liệu của trạm. */
+  source: 'node' | 'server';
+  /** Máy chủ gửi phiên bản này xuống trạm lúc nào (ISO); null = chưa gửi / trạm tự học. */
+  publishedAt: string | null;
+  /** Trạm bắt đầu dùng phiên bản này lúc nào (ISO); null = trạm chưa báo đang dùng. */
+  appliedAt: string | null;
   trainedAt: string | null;
   samples: number | null;
   horizonMinutes: number | null;

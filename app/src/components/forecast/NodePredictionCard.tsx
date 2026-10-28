@@ -10,10 +10,10 @@ import { SectionTitle } from '../common/SectionTitle';
 import { FloodLevelBadge } from '../station/FloodLevelBadge';
 
 /**
- * THẺ DỰ ĐOÁN NGẬP (FR-08): độ ngập NODE TỰ DỰ ĐOÁN sau vài phút (theo báo cáo: 5 phút),
+ * THẺ DỰ ĐOÁN NGẬP (FR-08): độ ngập TRẠM TỰ DỰ ĐOÁN sau 5 phút (bằng công thức máy chủ học rồi gửi xuống),
  * so với hiện tại đang lên hay xuống, và tính bằng phiên bản công thức nào.
  * Dữ liệu đã cũ thì ghi rõ dự đoán không còn đúng.
- * Trạm chưa gửi dự đoán (A01, A02 hiện chỉ gửi số đo) → ghi rõ "Trạm chưa có dự đoán", không tự bịa số.
+ * Trạm chưa có công thức nên chưa dự đoán → ghi rõ "Trạm chưa có dự đoán", không tự bịa số.
  */
 export function NodePredictionCard({ station }: { station: Station }) {
   const reading = station.latest;
@@ -26,7 +26,8 @@ export function NodePredictionCard({ station }: { station: Station }) {
         <SectionTitle>Dự đoán ngập</SectionTitle>
         <Text style={styles.emptyTitle}>Trạm chưa có dự đoán</Text>
         <Text style={styles.muted}>
-          Hiện trạm chỉ gửi số đo thực tế (mực nước, mưa, triều, nhiệt độ). Phần dự đoán mực nước vài phút tới sẽ bổ sung sau.
+          Trạm chỉ bắt đầu dự đoán khi máy chủ đã học được công thức từ dữ liệu lúc đường ngập của trạm này và gửi xuống
+          trạm. Trong lúc chờ, app vẫn hiện số đo thực tế.
         </Text>
       </Card>
     );
@@ -45,7 +46,8 @@ export function NodePredictionCard({ station }: { station: Station }) {
       </View>
       <Text style={[styles.trend, change > 0.5 && fresh && { color: appColors.danger }]}>{trend} so với hiện tại</Text>
       <Text style={styles.muted}>
-        Node tự tính bằng công thức hồi quy{reading.modelVersion ? ` phiên bản v${reading.modelVersion}` : ''} (xem mục Công thức bên dưới).
+        Trạm tự tính bằng công thức hồi quy{reading.modelVersion ? ` phiên bản v${reading.modelVersion}` : ''} do máy chủ
+        học từ dữ liệu của chính trạm (xem mục Công thức bên dưới).
       </Text>
       {!fresh ? <Text style={styles.note}>Dữ liệu của trạm đã cũ nên dự đoán này không còn đúng.</Text> : null}
     </Card>

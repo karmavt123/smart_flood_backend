@@ -8,6 +8,8 @@ export interface SensorReading {
   timestamp: string;
   /** Độ sâu nước ngập trên mặt đường (cm), 0 = khô. */
   waterLevelCm: number | null;
+  /** Tốc độ dâng trạm tự tính (mm/phút): dương = nước đang lên, âm = đang rút. */
+  riseRateMmMin: number | null;
   /** Lượng mưa node đo được (mm). */
   rainMm: number | null;
   /** Cường độ mưa (mm/giờ). Node gửi mm/giây, máy chủ đã đổi sang mm/giờ cho dễ đọc. */
@@ -21,9 +23,9 @@ export interface SensorReading {
   lightLux: number | null;
   /** Pin của node (%). */
   batteryPct: number | null;
-  /** Cường độ sóng LoRa (dBm). */
+  /** Cường độ sóng Wi-Fi trạm bắt được (dBm). */
   rssiDbm: number | null;
-  /** Độ sâu ngập NODE TỰ DỰ ĐOÁN sau `forecastMinutes` phút (cm). */
+  /** Độ sâu ngập TRẠM TỰ DỰ ĐOÁN sau `forecastMinutes` phút (cm), bằng công thức máy chủ gửi xuống. */
   predictedDepthCm: number | null;
   forecastMinutes: number | null;
   /** Dự đoán bằng phiên bản công thức nào. */

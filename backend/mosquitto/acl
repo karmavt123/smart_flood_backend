@@ -1,8 +1,12 @@
 # QUYỀN TRÊN MQTT — ai được đọc/ghi topic nào.
-# Gateway LoRa: chỉ được GHI dữ liệu node.  Backend: chỉ được ĐỌC dữ liệu node.
+# Trạm (ESP32 + Wi-Fi, tài khoản chung smartflood-gateway — tên cũ từ hồi còn gateway LoRa):
+#   GHI số đo lên .../data, ĐỌC hệ số công thức máy chủ gửi xuống ở .../model.
+# Backend: ĐỌC số đo, GHI hệ số công thức mới xuống trạm.
 
 user smartflood-gateway
 topic write smartflood/nodes/+/data
+topic read smartflood/nodes/+/model
 
 user smartflood-backend
 topic read smartflood/nodes/+/data
+topic write smartflood/nodes/+/model

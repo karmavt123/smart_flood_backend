@@ -1,3 +1,4 @@
+import { PREDICTION_HORIZON_MIN } from '../config/modelRules.js';
 import { describeSchemaIssues } from './describeSchemaIssues.js';
 import { IngestRejection } from './IngestRejection.js';
 import { KNOWN_MESSAGE_KEYS, nodeMessageSchema } from './nodeMessageSchema.js';
@@ -25,6 +26,8 @@ type FieldOption = [key: string, value: number | null | undefined, factor: numbe
  *   thủy triều:    tide_m × 100        → cm      (hoặc tide_cm kiểu cũ)
  *   cường độ mưa:  rain_rate_mm_s × 3600 → mm/giờ (hoặc rain_rate_mm_h)
  *   lượng mưa:     rain_mm giữ nguyên (mm)
+ *   dự báo:        predicted_water_level_mm ÷ 10 → cm, luôn là 5 phút tới (bản 3.0)
+ *   tốc độ dâng:   rise_rate_mm_min giữ nguyên (mm/phút) — máy chủ học công thức theo đúng đơn vị trạm dùng
  * Sai ở đâu thì ném IngestRejection kèm lý do tiếng Việt, ví dụ "tide_m: thiếu thủy triều (bắt buộc)".
  */
 export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedNodeMessage {
@@ -82,6 +85,23 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
     issues.push('rain_mm: thiếu thông tin mưa — gửi ít nhất 1 trong rain_mm, rain_rate_mm_s (bắt buộc)');
   }
 
+  // Dự báo: bản 3.0 gửi predicted_water_level_mm (luôn là 5 phút tới); kiểu cũ gửi object prediction.
+  const hasPredictedMm = message.predicted_water_level_mm !== null && message.predicted_water_level_mm !== undefined;
+  if (hasPredictedMm && message.prediction) {
+    issues.push('predicted_water_level_mm và prediction: cùng là dự báo, chỉ gửi 1 trường');
+  }
+  const prediction = hasPredictedMm
+    ? { depthCm: roundStored(message.predicted_water_level_mm! / 10), horizonMinutes: PREDICTION_HORIZON_MIN }
+    : message.prediction
+      ? { depthCm: message.prediction.depth_cm, horizonMinutes: message.prediction.horizon_min }
+      : null;
+
+  // Phiên bản công thức đang dùng: ghi ở model_version, hoặc trong model.version khi gửi kèm cả công thức.
+  if (message.model && message.model_version && message.model.version !== message.model_version) {
+    issues.push(`model_version ${message.model_version} khác model.version ${message.model.version}`);
+  }
+  const modelVersion = message.model?.version ?? message.model_version ?? null;
+
   if (issues.length > 0) throw new IngestRejection(issues.join('; '));
 
   const time = resolveMeasuredAt(
@@ -106,6 +126,8 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
     measuredAt: time.measuredAt,
     timeSource: time.timeSource,
     floodDepthCm: floodDepthCm!,
+    riseRateMmMin: message.rise_rate_mm_min ?? null,
+    modelVersion,
     rainMm,
     rainRateMmH: rainRateMmH ?? null,
     rainMm1h,
@@ -115,15 +137,13 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
     lightLux: message.light_lux ?? null,
     batteryPct: message.battery_pct ?? null,
     rssiDbm: message.rssi_dbm ?? null,
-    prediction: message.prediction
-      ? { depthCm: message.prediction.depth_cm, horizonMinutes: message.prediction.horizon_min }
-      : null,
+    prediction,
     model: model
       ? {
           version: model.version,
           trainedAt: model.trained_at === null || model.trained_at === undefined ? null : parseTimeValue(model.trained_at),
           samples: model.samples ?? null,
-          horizonMinutes: model.horizon_min ?? message.prediction?.horizon_min ?? null,
+          horizonMinutes: model.horizon_min ?? prediction?.horizonMinutes ?? PREDICTION_HORIZON_MIN,
           intercept: model.intercept,
           coefficients: model.coef,
           maeCm: model.mae_cm ?? null,

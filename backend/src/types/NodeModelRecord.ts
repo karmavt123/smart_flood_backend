@@ -6,10 +6,14 @@ export interface NodeModelRecord {
   samples: number | null;
   horizon_minutes: number | null;
   intercept: number;
-  /** Hệ số từng biến, vd { H: 0.98, V: 4.6, T: 0.004, RH: 0.001, L: 0 } */
+  /** Hệ số từng biến, bản 3.0: { H, V, R, S } (xem src/config/modelRules.ts); bản cũ có T, RH, L. */
   coefficients: Record<string, number>;
   mae_cm: number | null;
   rmse_cm: number | null;
   r2: number | null;
   first_seen_at: Date | string;
+  /** 'node' = trạm gửi lên, 'server' = máy chủ học. */
+  source: 'node' | 'server';
+  published_at: Date | string | null;
+  applied_at: Date | string | null;
 }

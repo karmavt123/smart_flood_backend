@@ -8,7 +8,7 @@
 </head>
 <body>
   <!--
-    TRANG ADMIN: xem tình trạng các node, sửa vị trí/ngưỡng, xem tin nhắn bị từ chối, gửi thử tin nhắn.
+    TRANG ADMIN: xem tình trạng các node, sửa vị trí/ngưỡng, xem/học lại công thức dự đoán, xem tin nhắn bị từ chối, gửi thử tin nhắn.
     Chỉ gọi API /api/v1/admin/* bằng khóa admin. Toàn bộ code nằm trong admin.js.
   -->
   <header class="topbar">
@@ -60,7 +60,7 @@
         <div class="grid2">
           <div class="card">
             <h2>Gửi thử 1 tin nhắn</h2>
-            <p class="muted">Xử lý y như tin nhắn MQTT thật (lưu vào DB, app thấy ngay). Dùng để kiểm tra định dạng JSON trước khi nối gateway.</p>
+            <p class="muted">Xử lý y như tin nhắn MQTT thật (lưu vào DB, app thấy ngay). Dùng để kiểm tra định dạng JSON trước khi nối trạm thật.</p>
             <textarea id="test-message" rows="16" spellcheck="false"></textarea>
             <div class="row"><button id="send-test">Gửi</button><button id="fill-now" class="ghost">Đặt giờ đo = bây giờ</button></div>
             <pre id="test-result" class="result"></pre>

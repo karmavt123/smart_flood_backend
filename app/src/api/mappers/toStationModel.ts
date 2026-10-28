@@ -12,6 +12,9 @@ export function toStationModel(raw: any): StationModel | null {
   }
   return {
     version,
+    source: raw.source === 'server' ? 'server' : 'node',
+    publishedAt: typeof raw.publishedAt === 'string' ? raw.publishedAt : null,
+    appliedAt: typeof raw.appliedAt === 'string' ? raw.appliedAt : null,
     trainedAt: typeof raw.trainedAt === 'string' ? raw.trainedAt : null,
     samples: toNumberOrNull(raw.samples),
     horizonMinutes: toNumberOrNull(raw.horizonMinutes),

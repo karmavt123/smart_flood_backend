@@ -30,7 +30,7 @@ Trạm (ESP32 + cảm biến) ──── Wi-Fi + MQTT ────▶ Máy ch�
 | Mục | Giá trị |
 |---|---|
 | Wi-Fi | ESP32 chỉ bắt được **2.4 GHz** (không bắt được 5 GHz) |
-| Địa chỉ | địa chỉ máy chủ anh mentor đưa, cổng **1883** |
+| Địa chỉ | **`flood.agentwf.xyz`**, cổng **1883** (trang web + API: `https://flood.agentwf.xyz`) |
 | Tài khoản | `smartflood-gateway` (tên cũ từ hồi còn gateway, giờ là **tài khoản chung của các trạm**) |
 | Mật khẩu | anh mentor đưa riêng (**không** ghi vào code đưa lên GitHub) |
 | Client ID | **mỗi trạm 1 tên riêng**, vd `station-A01`. 2 trạm trùng Client ID sẽ đá nhau rớt mạng liên tục |
@@ -264,7 +264,7 @@ void setup() {
   WiFi.begin("TEN_WIFI", "MAT_KHAU_WIFI");
   while (WiFi.status() != WL_CONNECTED) delay(500);
   configTime(7 * 3600, 0, "pool.ntp.org");                 // giờ Việt Nam qua mạng
-  mqtt.setServer("DIA_CHI_MAY_CHU", 1883);
+  mqtt.setServer("flood.agentwf.xyz", 1883);
   mqtt.setBufferSize(512);
   mqtt.setCallback(nhanCongThuc);
 }
@@ -323,12 +323,12 @@ void loop() {
 
 ## 8. Thử trước khi nối trạm thật
 
-**Cách 1: trang admin, không cần MQTT.** Mở `http://<máy-chủ>:3000/admin`, nhập khóa admin, tab **Gửi thử · Thêm node**: ô nhập có sẵn 1 gói tin mẫu bản 3.0, sửa số rồi bấm **Gửi**. Trang báo **✓ Đã lưu** hoặc **✗ Bị từ chối: <lý do>**.
+**Cách 1: trang admin, không cần MQTT.** Mở `https://flood.agentwf.xyz/admin`, nhập khóa admin, tab **Gửi thử · Thêm node**: ô nhập có sẵn 1 gói tin mẫu bản 3.0, sửa số rồi bấm **Gửi**. Trang báo **✓ Đã lưu** hoặc **✗ Bị từ chối: <lý do>**.
 
 **Cách 2: dòng lệnh, không cần MQTT:**
 
 ```bash
-curl -X POST http://<máy-chủ>:3000/api/v1/admin/messages \
+curl -X POST https://flood.agentwf.xyz/api/v1/admin/messages \
   -H "Content-Type: application/json" -H "x-admin-key: <KHÓA_ADMIN>" \
   -d '{"message": {"id":"ND-THU-01","time":"14:05:30","water_level_mm":125,"rise_rate_mm_min":2.4,"rain_mm":12.5,"tide_m":1.35}}'
 ```
@@ -337,12 +337,12 @@ curl -X POST http://<máy-chủ>:3000/api/v1/admin/messages \
 
 ```bash
 # Gửi 1 số đo
-mosquitto_pub -h <máy-chủ> -p 1883 -u smartflood-gateway -P '<mật khẩu>' -q 1 \
+mosquitto_pub -h flood.agentwf.xyz -p 1883 -u smartflood-gateway -P '<mật khẩu>' -q 1 \
   -t smartflood/nodes/ND-THU-01/data \
   -m '{"water_level_mm":125,"rise_rate_mm_min":2.4,"rain_mm":12.5,"tide_m":1.35}'
 
 # Xem hệ số máy chủ gửi xuống cho 1 trạm
-mosquitto_sub -h <máy-chủ> -p 1883 -u smartflood-gateway -P '<mật khẩu>' -q 1 -v -t smartflood/nodes/A01/model
+mosquitto_sub -h flood.agentwf.xyz -p 1883 -u smartflood-gateway -P '<mật khẩu>' -q 1 -v -t smartflood/nodes/A01/model
 ```
 
 > Gửi thử thì dùng mã kiểu `ND-THU-01`, **đừng dùng `A01`/`A02`** — không thì dữ liệu thử lẫn vào trạm thật (và bị đem đi học công thức).
@@ -370,7 +370,7 @@ Lý do bị từ chối hay gặp (xem tab **Tin nhắn lỗi**):
 - `.csv`: dòng đầu là tên cột, vd `id,date,time,water_level_mm,rise_rate_mm_min,rain_mm,tide_m` (xem `examples/import-sample.csv`). Ô trống = không có dữ liệu, không phải 0. Lưu từ Excel dạng **CSV UTF-8**.
 
 ```bash
-npm run import -- du-lieu.csv --api http://<máy-chủ>:3000 --key <KHÓA_ADMIN>
+npm run import -- du-lieu.csv --api https://flood.agentwf.xyz --key <KHÓA_ADMIN>
 ```
 
 Nhập lại cùng file **không bị trùng**. Dữ liệu cũ nhập vào **cũng được dùng để học công thức** (nếu nằm trong 30 ngày gần nhất).

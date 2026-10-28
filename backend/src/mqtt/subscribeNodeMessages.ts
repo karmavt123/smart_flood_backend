@@ -46,8 +46,16 @@ export function subscribeNodeMessages(options: {
     mqttStatus.lastMessageAt = new Date().toISOString();
     handleNodeMessage({ channel: 'mqtt', topic, nodeIdFromTopic: getNodeIdFromTopic(topic), payload: payload.toString('utf8') })
       .then((result) => {
-        if (!result.ok) console.warn(`[mqtt] Từ chối tin nhắn ở ${topic}: ${result.reason}`);
-        else if (result.newModelVersion) console.log(`[mqtt] ${result.nodeId} gửi công thức mới v${result.newModelVersion}`);
+        if (!result.ok) {
+          console.warn(`[mqtt] Từ chối tin nhắn ở ${topic}: ${result.reason}`);
+          return;
+        }
+        console.log(
+          result.status === 'saved'
+            ? `[mqtt] Đã lưu số đo của ${result.nodeId}`
+            : `[mqtt] ${result.nodeId} gửi trùng lần đo đã có → bỏ qua`,
+        );
+        if (result.newModelVersion) console.log(`[mqtt] ${result.nodeId} gửi công thức mới v${result.newModelVersion}`);
       })
       .catch((error: unknown) => console.error(`[mqtt] Lỗi khi lưu tin nhắn ở ${topic}:`, error));
   });

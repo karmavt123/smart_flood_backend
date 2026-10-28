@@ -8,6 +8,16 @@ import { createServer } from 'node:net';
 export async function startEmbeddedBroker(host: string, port: number): Promise<string> {
   const { Aedes } = await import('aedes');
   const broker = await Aedes.createBroker();
+  // In ra mỗi khi 1 trạm kết nối / rớt — để biết ESP32 đã vào được broker chưa (bỏ qua chính backend).
+  broker.on('clientReady', (client) => {
+    if (client.id === 'smartflood-backend') return;
+    const address = (client.conn as { remoteAddress?: string }).remoteAddress?.replace(/^::ffff:/, '') ?? '?';
+    console.log(`[mqtt] + "${client.id}" đã kết nối vào broker (từ ${address})`);
+  });
+  broker.on('clientDisconnect', (client) => {
+    if (client.id === 'smartflood-backend') return;
+    console.log(`[mqtt] - "${client.id}" đã ngắt kết nối`);
+  });
   const server = createServer(broker.handle);
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);

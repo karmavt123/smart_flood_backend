@@ -131,6 +131,7 @@ function tick() {
   const now = Date.now();
   const t = (now - startedAt) / 1000;
   const { rainRateMmH, tideCm } = weatherAt(t);
+  const sent: string[] = [];
 
   for (const node of nodes) {
     const step = stepDepth(node.depth, node.terrain, { rainRateMmH, tideCm });
@@ -174,11 +175,11 @@ function tick() {
       }
     }
     client.publish(`smartflood/nodes/${node.id}/data`, JSON.stringify(message), { qos: 1 });
+    sent.push(
+      `${node.id}: H=${levelMm} → 5′ ${message.predicted_water_level_mm}mm, V=${round(drainMm, 1)}${node.model ? ` (v${node.model.version})` : ' (tự tính)'}`,
+    );
   }
-  const summary = nodes
-    .map((n) => `${n.id}=${Math.round(n.depth * 10)}mm${n.model ? ` (v${n.model.version})` : ''}`)
-    .join('  ');
-  console.log(`[fake-node] mưa ${round(rainRateMmH, 1)} mm/h, triều ${round(tideCm / 100, 2)} m → ${summary}`);
+  console.log(`[fake-node] mưa ${round(rainRateMmH, 1)} mm/h, triều ${round(tideCm / 100, 2)} m │ ${sent.join(' │ ')}`);
 }
 
 function round(value: number, digits: number) {
@@ -234,7 +235,8 @@ client.on('connect', async () => {
   started = true;
   await moveTestNodes();
   console.log(`[fake-node] Đã nối ${url}. Gửi ${nodes.length} trạm thử quanh (${centerLat}, ${centerLng}) mỗi ${intervalSec} giây.`);
-  console.log('[fake-node] Chưa có công thức → chưa gửi dự báo. Chạy ~15 phút rồi bấm "Học lại ngay" ở trang admin.');
+  console.log('[fake-node] Gói tin 3.1: H, dự báo sau 5 phút, V (thoát nước), R (mưa 5 phút), S (triều).');
+  console.log('[fake-node] Chưa có công thức → trạm giả TỰ TÍNH dự báo. Chạy ~15 phút rồi bấm "Học lại ngay" ở admin để dùng công thức máy chủ.');
   tick();
   setInterval(tick, intervalSec * 1000);
 });

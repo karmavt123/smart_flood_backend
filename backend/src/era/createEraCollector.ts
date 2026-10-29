@@ -61,7 +61,7 @@ export function createEraCollector(options: EraCollectorOptions) {
         }
         continue;
       }
-      latest.set(rule.target, { value: round(item.value * rule.factor), at });
+      latest.set(rule.target, { value: round(item.value * rule.factor + rule.offset), at });
       mapped += 1;
     }
     // Chừa 10% để trạm gửi đúng chu kỳ (vd 60 giây/lần, lưu 60 giây/lần) không bị lỡ mất 1 nửa.

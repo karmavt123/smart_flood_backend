@@ -209,6 +209,12 @@ npx mqtt sub -h mqtt1.eoh.io -p 1883 -u TOKEN -P TOKEN -i smartflood-thu-nghe -t
 
 `*10` khi E-Ra gửi độ ngập theo **cm** (máy chủ cần **mm**); gửi mm sẵn thì bỏ `*10`. Thủy triều phải ra **m** (E-Ra gửi cm thì `*0.01`).
 
+**Cảm biến siêu âm gửi KHOẢNG CÁCH (vd `"khoang cach": 26.3` cm) chứ không phải độ ngập:** đo khoảng cách $H_0$ từ cảm biến xuống **mặt đường khô** (cm), rồi
+
+$$\text{độ ngập (mm)} = (H_0 - \text{khoảng cách}) \times 10 = \text{khoảng cách} \times (-10) + 10H_0$$
+
+→ ghi `khoang cach=water_level_mm*-10+800` (với $H_0 = 80$ cm). Tên trường có dấu cách vẫn được. Dạng chung: `nguon=dich*a+b` nghĩa là giá trị lưu $= a \times \text{giá trị E-Ra} + b$.
+
 **Bật:** điền 3 biến vào `.env` → `npm run dev`. Log đúng:
 
 ```

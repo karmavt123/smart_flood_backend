@@ -114,9 +114,9 @@ Mở **terminal thứ 2** (cũng ở thư mục backend):
 npm run fake-node
 ```
 
-Lệnh này tạo 2 trạm thử `TEST-A01` (chỗ trũng, dễ ngập) và `TEST-A02` quanh ĐH Bách Khoa, cứ 5 giây gửi 1 lần (trạm thật 5 **phút** 1 lần), **đúng gói tin bản 3.1** (`water_level_mm`, `drain_mm_5min`, `rain_mm`, `tide_m`, ngày + giờ VN; có công thức thì thêm `predicted_water_level_mm`). Mưa giả lặp lại mỗi 10 phút: **5 phút mưa** (nước dâng) rồi **5 phút tạnh** (nước rút). Đợi khoảng 2–3 phút mới thấy ngập. Để chạy lâu cũng được, trên app sẽ thấy trạm đổi mức ngập qua lại.
+Lệnh này tạo 2 trạm thử `TEST-A01` (chỗ trũng, dễ ngập) và `TEST-A02` quanh ĐH Bách Khoa, cứ 5 giây gửi 1 lần (trạm thật 5 **phút** 1 lần), **đúng gói tin bản 3.1** (`water_level_mm`, `drain_mm_5min`, `rain_mm`, `tide_m`, ngày + giờ VN, `predicted_water_level_mm` — **luôn đủ 5 thành phần** H, Ĥ, V, R, S). Mưa giả lặp lại mỗi 10 phút: **5 phút mưa** (nước dâng) rồi **5 phút tạnh** (nước rút). Đợi khoảng 2–3 phút mới thấy ngập. Để chạy lâu cũng được, trên app sẽ thấy trạm đổi mức ngập qua lại.
 
-Trạm thử cũng **nghe hệ số máy chủ gửi xuống** giống trạm thật: lúc đầu chưa có công thức nên chưa dự báo; máy chủ học xong (Bước 7) thì nó in `TEST-A01 nhận công thức mới v1 từ máy chủ → dùng ngay` và bắt đầu gửi độ ngập dự báo.
+Mỗi dòng log in `TEST-A01: H=… → 5′ …mm, V=…`. Lúc đầu chưa có công thức, trạm thử **tự tính** dự báo (cho nước "chạy thử" 5 phút tới theo kịch bản mưa, triều giả, giống nhóm IoT tự tính), log ghi `(tự tính)`. Trạm thử cũng **nghe hệ số máy chủ gửi xuống** giống trạm thật: máy chủ học xong (Bước 7) thì nó in `TEST-A01 nhận công thức mới v1 từ máy chủ → dùng ngay`, từ đó dự báo bằng công thức đó và log ghi `(v1)`.
 
 **Muốn node thử nằm quanh chỗ mình đang ngồi** (để màn "Quanh bạn" của app có dữ liệu): lấy tọa độ trên Google Maps (chuột phải lên bản đồ → bấm dòng số đầu tiên để chép), rồi chạy:
 
@@ -163,7 +163,7 @@ Thử gửi **thiếu `tide_m`** để thấy máy chủ từ chối và ghi lý
 1. Để node giả (Bước 4) chạy **khoảng 15 phút**: máy chủ cần ít nhất 30 cặp mẫu lúc đang ngập, mỗi cặp là *(lúc t → 5 phút sau)*.
 2. Mở trang admin → **Xem / Sửa** ở dòng `TEST-A01` → mục **Công thức dự đoán** → bấm **Học lại ngay**.
 3. Ô kết quả báo ví dụ `✓ Có công thức mới: Học từ 120 cặp mẫu lúc đang ngập → v1. Sai số 0,85 cm (...). Đã gửi về trạm.` Chưa đủ mẫu thì báo `Giữ công thức cũ: Chỉ có 12 cặp mẫu...` — đợi thêm rồi bấm lại.
-4. Cửa sổ node giả in `TEST-A01 nhận công thức mới v1 từ máy chủ → dùng ngay`. Vài giây sau, bảng công thức trong admin có thêm cột **Trạm bắt đầu dùng**, và app (màn chi tiết trạm) hiện thẻ **Dự đoán 5 phút tới** + thẻ **Công thức dự đoán riêng của trạm**.
+4. Cửa sổ node giả in `TEST-A01 nhận công thức mới v1 từ máy chủ → dùng ngay`. Vài giây sau, bảng công thức trong admin có thêm cột **Trạm bắt đầu dùng**, log node giả đổi `(tự tính)` thành `(v1)`, và app (màn chi tiết trạm) hiện thẻ **Công thức dự đoán riêng của trạm** v1; thẻ dự đoán ghi trạm đang dùng công thức v1.
 5. Bấm **Học lại ngay** lần nữa: công thức mới chỉ được nhận nếu **sai số nhỏ hơn** bản đang dùng, không thì **Nhật ký học lại** ghi rõ "không tốt hơn v1 → giữ v1".
 
 Không bấm thì máy chủ cũng **tự học mỗi ngày lúc 00:30** (đổi giờ bằng `MODEL_RETRAIN_TIME` trong `.env`).

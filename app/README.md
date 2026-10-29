@@ -7,12 +7,12 @@ App lấy dữ liệu từ **backend SmartFlood mới** (thư mục `smartflood-
 ```
 Trạm đo ngập ──Wi-Fi + MQTT──▶ Backend SmartFlood ──API + Socket.IO──▶ App (đây)
              ◀── hệ số công thức mới (mỗi đêm) ──
- (mực nước ngập, tốc độ dâng,       (đổi đơn vị, lưu PostgreSQL,         (Quanh bạn, bản đồ,
-  mưa, triều, dự báo 5 phút)         tính mức ngập, đường ngập,          cảnh báo, tuyến đường)
+ (độ ngập, dự báo 5 phút,           (đổi đơn vị, lưu PostgreSQL,         (Quanh bạn, bản đồ,
+  thoát nước, mưa, triều)            tính mức ngập, đường ngập,          cảnh báo, tuyến đường)
                                      kiểm tra tuyến, học lại công thức)
 ```
 
-**Trạm thật hiện có:** A01, A02. Từ 28/10/2026 (gói tin bản 3.0) mỗi lần đo trạm gửi: mực nước ngập (mm), **tốc độ dâng (mm/phút)**, lượng mưa (mm), thủy triều (m), giờ đo, và khi đã có công thức thì thêm **độ ngập dự báo 5 phút tới** + số phiên bản công thức. Backend đổi đơn vị rồi gửi xuống app; app hiện **mực nước ngập (cm)**, **tốc độ dâng**, **lượng mưa**, **thủy triều (m)**, dự báo và công thức. Trạm **chưa có công thức** (máy chủ chưa đủ dữ liệu lúc đường ngập để học) thì app ghi thật "Trạm chưa có dự đoán". Gói tin bản 2.0 (có cường độ mưa, nhiệt độ) vẫn hiện bình thường.
+**Trạm thật hiện có:** A01, A02. Từ 29/10/2026 (**gói tin bản 3.1**) mỗi lần đo trạm gửi đủ 5 thành phần của công thức: **độ ngập hiện tại H** (mm, độ sâu nước trên mặt đường), **độ ngập dự báo sau 5 phút** (mm), **tốc độ thoát nước V** (mm/5 phút), **lượng mưa trong 5 phút R** (mm), **thủy triều S** (m), kèm giờ đo (giờ Việt Nam) và số phiên bản công thức. **Trạm tự tính V và dự báo; app chỉ nhận và hiển thị, không tính lại.** Backend đổi đơn vị rồi gửi xuống app; app hiện độ ngập (cm) kèm ô **"Sau 5 phút"** (Đang dâng / Đang rút / Ổn định, so dự báo với hiện tại ±2 mm), **Thoát nước**, **Mưa (5 phút)**, **Thủy triều (m)** và công thức. Trạm chưa gửi dự báo, hoặc dữ liệu đã cũ, thì ô "Sau 5 phút" ghi **"Chưa có thông tin"**. Gói tin cũ (3.0 có tốc độ dâng, 2.0 có cường độ mưa) vẫn được nhận; app không hiện tốc độ dâng nữa.
 
 ---
 
@@ -42,7 +42,7 @@ Trạm đo ngập ──Wi-Fi + MQTT──▶ Backend SmartFlood ──API + Soc
 | **! Cảnh báo** | Các trạm đang từ mức Cảnh báo trở lên, và các lần trạm tăng mức ngập nhận được trong lần mở app này. |
 | **≡ Trạm** | Danh sách trạm: tìm theo tên (gõ không dấu cũng được), lọc, sắp xếp theo độ ngập, cập nhật mới nhất hoặc khoảng cách. |
 | **⚙ Cài đặt** | Bật/tắt thông báo, trạng thái quyền thông báo, các trạm đang theo dõi (lưu trên máy), địa chỉ máy chủ. |
-| Chi tiết trạm | Độ ngập, **thông số đo** (tốc độ dâng, lượng mưa, thủy triều… — chỉ hiện thông số trạm có gửi), biểu đồ lịch sử 1 giờ / 24 giờ / 7 ngày kèm nút **Xuất CSV** (laptop: tải file về; điện thoại: mở bảng Chia sẻ), dự đoán 5 phút tới và **công thức dự đoán riêng của trạm** (máy chủ học hay trạm gửi, đã gửi về trạm chưa, so với phiên bản trước; hiện "Trạm chưa có dự đoán" khi chưa có), vị trí, nút theo dõi. |
+| Chi tiết trạm | Độ ngập kèm ô **Sau 5 phút** (Đang dâng / Đang rút / Ổn định), **thông số đo** (thoát nước, mưa 5 phút, thủy triều… — chỉ hiện thông số trạm có gửi), biểu đồ lịch sử 1 giờ / 24 giờ / 7 ngày kèm nút **Xuất CSV** (laptop: tải file về; điện thoại: mở bảng Chia sẻ), dự đoán 5 phút tới và **công thức dự đoán riêng của trạm** (máy chủ học hay trạm gửi, đã gửi về trạm chưa, so với phiên bản trước; ô dự báo ghi "Chưa có thông tin" khi trạm chưa gửi), vị trí, nút theo dõi. |
 | Giới thiệu | Chỉ hiện ở lần mở đầu tiên. |
 
 Các quy tắc an toàn app tuân theo (lấy từ tài liệu yêu cầu, mục 2.2):
@@ -54,7 +54,7 @@ Các quy tắc an toàn app tuân theo (lấy từ tài liệu yêu cầu, mục
 - **Đường tô màu là ước lượng.** Node chỉ đo được 1 điểm; app tô các đoạn đường nằm trong vùng ảnh hưởng quanh node đang ngập (100–300 m tùy mức) và ghi rõ là ước lượng.
 - **Trạm không gửi thông số nào thì app ẩn thông số đó** (vd A01, A02 không gửi độ ẩm → không có ô độ ẩm), thay vì hiện cả loạt ô "Chưa có dữ liệu".
 - **Số liệu chỉ để tham khảo**, không thay thế cảnh báo và hướng dẫn của cơ quan chức năng (ghi ở màn Giới thiệu và Cài đặt).
-- **Không tự bịa dự đoán.** Trạm chưa gửi dự đoán thì app ghi "Trạm chưa có dự đoán"; khi có, app ghi rõ phiên bản công thức.
+- **Không tự bịa dự đoán.** Trạm chưa gửi dự báo (hoặc dữ liệu đã cũ) thì ô "Sau 5 phút" ghi "Chưa có thông tin"; khi có, app hiện đúng số trạm gửi và ghi phiên bản công thức (nếu trạm báo).
 - **Kiểm tra tuyến đường:** nếu gần tuyến có trạm mất kết nối, app ghi **"Chưa đủ dữ liệu đánh giá"** và không kết luận tuyến an toàn.
 
 ---
@@ -421,7 +421,7 @@ Dữ liệu mẫu có sẵn đủ các tình huống để trình diễn:
 | Demo – Huỳnh Tấn Phát (Q.7) | **An toàn**, ngoài vòng 2 km nên mờ |
 | Demo – Trạm mới | **Chưa có dữ liệu** |
 
-Số đo mẫu giống gói tin thật của A01, A02 (mực nước, lượng mưa, cường độ mưa, triều, nhiệt độ), **không có dự đoán / công thức**, để demo hiện đúng như khi chạy thật.
+Số đo mẫu giống gói tin 3.1 (độ ngập, dự báo sau 5 phút, thoát nước, mưa 5 phút, triều, nhiệt độ). Riêng **Huỳnh Tấn Phát (Q.7)** giả làm trạm chưa gửi dự báo → ô "Sau 5 phút" ghi "Chưa có thông tin"; trạm **Khánh Hội (Q.4)** mất kết nối nên cũng ghi "Chưa có thông tin".
 
 Chế độ demo không có mạng nên **không có hình dạng đường**: chỗ ngập được vẽ bằng **vòng tròn vùng ảnh hưởng** thay cho tô màu đường (thẻ "Quanh bạn" có ghi chú điều này).
 
@@ -521,7 +521,7 @@ smartflood-app/
 │   │   │   ├── TextField.tsx                       # Ô nhập chữ có nhãn
 │   │   │   └── WebPhoneFrame.tsx                   # Trên laptop: hiện app trong khung rộng như điện thoại
 │   │   ├── forecast/                               # Dự đoán
-│   │   │   └── NodePredictionCard.tsx              # Thẻ dự đoán ngập (trạm chưa gửi dự đoán → "Trạm chưa có dự đoán")
+│   │   │   └── NodePredictionCard.tsx              # Thẻ dự đoán ngập (trạm chưa gửi dự báo → "Chưa có thông tin")
 │   │   ├── map/                                    # ★ Mọi thứ trên màn Bản đồ (file .web.tsx = bản cho trình duyệt)
 │   │   │   ├── FloodedRoadLines.tsx                # ★ Tô màu các đoạn đường bị ngập
 │   │   │   ├── FloodedRoadLines.web.tsx            # Tô màu đường ngập trên bản đồ web
@@ -705,7 +705,7 @@ src/app/station/[nodeId].tsx
   ├─ useStations()                          → thông tin trạm + lần đo mới nhất (đã có sẵn trong kho)
   ├─ <SensorMetricsCard>                    → thông số đo của lần đo mới nhất (ẩn thông số trạm không gửi)
   ├─ <SensorHistoryCard>                    → tự gọi getSensorHistory theo khoảng 1h/24h/7 ngày
-  ├─ <NodePredictionCard>                   → dự đoán (trạm chưa gửi → "Trạm chưa có dự đoán")
+  ├─ <NodePredictionCard>                   → dự đoán (trạm chưa gửi → "Chưa có thông tin")
   └─ <StationModelCard>                     → tự gọi getStationModels: các phiên bản công thức của trạm
 ```
 
@@ -784,8 +784,8 @@ src/app/station/[nodeId].tsx
 | FR-04 | **Bản đồ** trạm và vùng ảnh hưởng | ✅ | `app/(tabs)/index.tsx`, `components/map/*` (điện thoại: react-native-maps; laptop: Leaflet) | Thêm **"Quanh bạn"**: vòng 2 km, tô màu đường ngập, thẻ tóm tắt. Trạm thiếu tọa độ không đặt bừa trên bản đồ |
 | FR-05 | Danh sách trạm (P0 + P1) | ✅ | `app/(tabs)/stations.tsx`, `utils/filterStations.ts`, `searchStations.ts`, `sortStations.ts` | Có nút "Xóa bộ lọc" khi không có kết quả |
 | FR-06 | Chi tiết trạm và realtime | ✅ | `app/station/[nodeId].tsx`, `state/RealtimeProvider.tsx`, `utils/mergeLiveStations.ts` | Kết nối lại thì tải lại danh sách trạm ngay |
-| FR-07 | Biểu đồ lịch sử | ✅ | `components/station/SensorHistoryCard.tsx`, `components/charts/HistoryLineChart.tsx` | Độ ngập, lượng mưa, cường độ mưa, triều, nhiệt độ (chỉ hiện nút cho thông số trạm có gửi). Ngắt đường ở chỗ thiếu dữ liệu. Xuất CSV toàn bộ số đo trong khoảng đang xem. ⬜ Tự chọn khoảng thời gian (P1) |
-| FR-08 | Dự báo | 🟨 chờ dữ liệu thật | `components/forecast/NodePredictionCard.tsx`, `components/station/StationModelCard.tsx` | App hiện dự đoán 5 phút tới + công thức + các phiên bản. Máy chủ học lại công thức mỗi đêm và gửi về trạm (đã chạy thử với trạm ảo TEST-A01). Trạm A01, A02 chưa có đủ dữ liệu lúc ngập để học nên đang hiện "Trạm chưa có dự đoán" |
+| FR-07 | Biểu đồ lịch sử | ✅ | `components/station/SensorHistoryCard.tsx`, `components/charts/HistoryLineChart.tsx` | Độ ngập, thoát nước, mưa 5 phút, dự báo sau 5 phút, triều, nhiệt độ (chỉ hiện nút cho thông số trạm có gửi). Ngắt đường ở chỗ thiếu dữ liệu. Xuất CSV toàn bộ số đo trong khoảng đang xem. ⬜ Tự chọn khoảng thời gian (P1) |
+| FR-08 | Dự báo | 🟨 chờ dữ liệu thật | `components/forecast/NodePredictionCard.tsx`, `components/station/StationModelCard.tsx` | Ô **"Sau 5 phút"** cạnh độ ngập (màn Bản đồ + Chi tiết trạm), thẻ dự đoán, công thức + các phiên bản. Dự báo do trạm tự tính và gửi lên (gói tin 3.1); máy chủ học lại công thức mỗi đêm và gửi về trạm (đã chạy thử với trạm ảo TEST-A01). Trạm chưa gửi dự báo → "Chưa có thông tin" |
 | FR-09 | Theo dõi trạm | ✅ | `components/station/FollowButton.tsx`, `state/FavoritesProvider.tsx` | Lưu **trên máy** (không còn tài khoản) |
 | FR-10 | Push và mở đúng trạm | 🟡 | `notifications/*`, `components/alerts/RealtimeAlertBanner.tsx` | Backend **chưa gửi Push**. App hiện dải cảnh báo và thông báo khi app đang chạy; chạm vào mở đúng trạm |
 | FR-11 | Trung tâm cảnh báo | 🟡 | `app/(tabs)/alerts.tsx`, `components/alerts/*` | Trạm đang cảnh báo + cảnh báo nhận trong lần mở app. ⬜ Lịch sử cảnh báo lưu trên máy chủ, ⬜ lọc (P1) |
@@ -811,8 +811,8 @@ src/app/station/[nodeId].tsx
 | Hình dạng đường lấy từ OpenStreetMap (dịch vụ Overpass miễn phí) | Lỗi hoặc quá tải thì app vẽ **vòng tròn vùng ảnh hưởng** thay cho tô màu đường, và ghi chú trong thẻ "Quanh bạn" |
 | Chưa có thông báo đẩy (Push) | Thông báo trên máy và dải cảnh báo chỉ có khi app đang chạy |
 | Không có tài khoản | Trạm theo dõi, cài đặt thông báo lưu trên từng máy; đổi máy phải chọn lại |
-| **Chưa có dự đoán ở trạm thật** | Công thức chỉ học được khi có ít nhất ~2,5 giờ dữ liệu lúc đường ngập. Trạm ảo `TEST-...` thì có (dữ liệu mô phỏng, không đưa vào báo cáo) |
-| Một số ý nghĩa số đo chưa chốt với bên IoT | Mực nước đo so với mặt đường hay mốc khác, lượng mưa cộng dồn từ lúc nào... (xem `IOT_DATA_FORMAT.md` của backend, mục 8). Nhãn trên app có thể phải sửa lại |
+| **Dự báo ở trạm thật phụ thuộc nhóm IoT** | Trạm tự tính dự báo và V rồi gửi lên; app chỉ hiển thị. Máy chủ chỉ học công thức khi có ít nhất ~2,5 giờ dữ liệu lúc đường ngập **có V**. Trạm ảo `TEST-...` luôn có dự báo (dữ liệu mô phỏng, không đưa vào báo cáo) |
+| Cách đo V chưa rõ | Đã chốt (29/10): độ ngập = độ sâu nước trên mặt đường, mưa = mưa trong 5 phút, V = thoát nước mm/5 phút. Còn chờ nhóm IoT nói V đo/tính thế nào (xem `IOT_DATA_FORMAT.md` của backend, mục 10) |
 | Vị trí trên laptop | Trình duyệt đoán vị trí qua Wi-Fi, có thể lệch; chuột phải lên bản đồ để chọn đúng chỗ |
 
 ---
@@ -859,7 +859,7 @@ src/app/station/[nodeId].tsx
 - [ ] Điện thoại dùng để thuyết trình là iPhone thì đã đăng nhập **cùng một tài khoản Expo** trên máy tính (`npx expo whoami`) và trên Expo Go.
 - [ ] `.env.local` đã ghi đúng địa chỉ backend anh mentor deploy (không phải `localhost`). Mở app thấy thẻ "Quanh bạn" và các trạm thật.
 - [ ] Thuyết trình bằng laptop: đã chạy `npm run web` trên **đúng laptop đó**, bản đồ có đường phố, vòng 2 km đúng chỗ (lệch thì chuột phải chọn lại), thử chuột phải chọn A/B kiểm tra tuyến.
-- [ ] Mở chi tiết trạm A01/A02: thấy đủ mực nước, tốc độ dâng, lượng mưa, thủy triều. Chuẩn bị câu trả lời nếu giám khảo hỏi phần dự đoán: máy chủ học lại công thức mỗi đêm, trạm thật chưa đủ dữ liệu ngập nên hiện "Trạm chưa có dự đoán"; demo vòng học bằng trạm ảo TEST-A01 + nút "Học lại ngay" ở trang admin.
+- [ ] Mở chi tiết trạm A01/A02: thấy độ ngập + ô "Sau 5 phút", thoát nước, mưa 5 phút, thủy triều. Chuẩn bị câu trả lời nếu giám khảo hỏi phần dự đoán: trạm tự tính dự báo, máy chủ học lại công thức mỗi đêm và gửi hệ số về trạm; trạm chưa gửi dự báo thì app ghi "Chưa có thông tin"; demo vòng học bằng trạm ảo TEST-A01 + nút "Học lại ngay" ở trang admin.
 - [ ] Chạm trạm → Xem chi tiết → biểu đồ có dữ liệu.
 - [ ] Thử kiểm tra một tuyến đường.
 - [ ] Đã thử **chế độ DEMO** trên đúng điện thoại sẽ dùng để thuyết trình (phòng khi mạng ở hội trường yếu).

@@ -5,9 +5,12 @@
  *   1. GỬI số đo lên topic smartflood/nodes/<id>/data:
  *        { "id": "TEST-A01", "date": "2026-10-29", "time": "14:05:30", "water_level_mm": 125,
  *          "predicted_water_level_mm": 137, "drain_mm_5min": 6.2, "rain_mm": 1.5, "tide_m": 1.35, "model_version": 2 }
+ *      → LUÔN đủ 5 thành phần của công thức: H (water_level_mm), Ĥ sau 5 phút (predicted_water_level_mm),
+ *        V (drain_mm_5min), R (rain_mm, mưa trong 5 phút), S (tide_m) — đúng như nhóm IoT gửi.
  *   2. NGHE topic smartflood/nodes/<id>/model: máy chủ học xong công thức mới thì gửi xuống,
- *      trạm giả nhận và DÙNG NGAY để tính độ ngập dự báo 5 phút tới.
- *      Chưa nhận công thức nào thì không gửi dự báo (giống trạm thật lúc mới lắp).
+ *      trạm giả nhận và DÙNG NGAY để tính Ĥ (kèm model_version).
+ *      Chưa có công thức nào thì trạm giả TỰ TÍNH Ĥ bằng cách cho nước "chạy thử" 5 phút tới
+ *      (vai trò của nhóm IoT tự tính) — không kèm model_version.
  *
  *   npm run fake-node                                   → 2 trạm thử TEST-A01, TEST-A02 quanh ĐH Bách Khoa, 5 giây gửi 1 lần
  *   npm run fake-node -- --lat 10.80 --lng 106.68       → đặt các trạm thử quanh vị trí khác (vd nhà/trường của bạn)
@@ -101,17 +104,38 @@ function sumLast5Minutes(log: { at: number; mm: number }[], now: number) {
   return log.reduce((sum, item) => sum + item.mm, 0);
 }
 
+/** Thời tiết giả ở giây thứ t: 1 "cơn mưa" 10 phút lặp lại; triều lên xuống chu kỳ 30 phút (rút ngắn cho dễ xem). */
+function weatherAt(t: number) {
+  return {
+    rainRateMmH: Math.max(0, 70 * Math.sin((2 * Math.PI * t) / 600)),
+    tideCm: 120 + 80 * Math.sin((2 * Math.PI * t) / 1800),
+  };
+}
+
+/** Nước thay đổi qua 1 lần gửi: mưa + triều đổ vào, cống rút bớt. Trả về độ ngập mới (cm) và lượng thoát (cm). */
+function stepDepth(depthCm: number, terrain: number, weather: { rainRateMmH: number; tideCm: number }) {
+  const inflow = (weather.rainRateMmH / 60) * terrain * 1.2 + Math.max(0, weather.tideCm - 170) * 0.02 * terrain;
+  const outflowCm = depthCm * 0.04;
+  return { depthCm: Math.max(0, depthCm + inflow - outflowCm), outflowCm };
+}
+
+/** Trạm chưa có công thức: tự dự báo bằng cách cho nước "chạy thử" 5 phút tới với thời tiết giả (mm). */
+function simulateIn5Minutes(node: FakeNode, t: number): number {
+  let depthCm = node.depth;
+  const steps = Math.max(1, Math.round(300 / intervalSec));
+  for (let k = 1; k <= steps; k++) depthCm = stepDepth(depthCm, node.terrain, weatherAt(t + k * intervalSec)).depthCm;
+  return depthCm * 10;
+}
+
 function tick() {
   const now = Date.now();
   const t = (now - startedAt) / 1000;
-  // 1 "cơn mưa" giả kéo dài 10 phút rồi lặp lại; triều lên xuống chu kỳ 30 phút (rút ngắn cho dễ xem).
-  const rainRateMmH = Math.max(0, 70 * Math.sin((2 * Math.PI * t) / 600));
-  const tideCm = 120 + 80 * Math.sin((2 * Math.PI * t) / 1800);
+  const { rainRateMmH, tideCm } = weatherAt(t);
 
   for (const node of nodes) {
-    const inflow = (rainRateMmH / 60) * node.terrain * 1.2 + Math.max(0, tideCm - 170) * 0.02 * node.terrain;
-    const outflowCm = node.depth * 0.04; // nước thoát qua cống lần này
-    node.depth = Math.max(0, node.depth + inflow - outflowCm);
+    const step = stepDepth(node.depth, node.terrain, { rainRateMmH, tideCm });
+    const outflowCm = step.outflowCm; // nước thoát qua cống lần này
+    node.depth = step.depthCm;
     const levelMm = Math.round(node.depth * 10);
 
     // V = nước thoát qua cống trong 5 phút gần nhất (mm/5 phút); R = mưa rơi trong 5 phút gần nhất (mm).
@@ -132,6 +156,8 @@ function tick() {
       location: node.location,
       is_test: true,
     };
+    // Ĥ sau 5 phút: có công thức máy chủ gửi thì dùng công thức đó; chưa có thì trạm tự tính.
+    message.predicted_water_level_mm = Math.round(Math.max(0, simulateIn5Minutes(node, t)));
     if (node.model) {
       const c = node.model.coef;
       const predicted =

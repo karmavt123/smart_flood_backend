@@ -9,7 +9,7 @@ Viết mới hoàn toàn, **tách riêng khỏi backend của web smartflood.vn 
 3. **Cung cấp API cho app** (không cần đăng nhập): danh sách trạm, lịch sử, công thức từng trạm, tình hình ngập quanh vị trí người dùng, kiểm tra tuyến đường, cập nhật realtime.
 4. **Trang admin** `/admin` để xem và quản lý trạm, bấm **"Học lại ngay"**.
 
-> **Bên IoT:** định dạng dữ liệu trạm phải gửi và cách nhận hệ số nằm ở **[IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md)** (bản 3.0, 28/10/2026: bỏ LoRa, trạm gửi thẳng qua Wi-Fi).
+> **Bên IoT:** định dạng dữ liệu trạm phải gửi và cách nhận hệ số nằm ở **[IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md)** (bản 3.1, 29/10/2026: V = tốc độ thoát nước `drain_mm_5min`, bắt buộc; trạm gửi thẳng qua Wi-Fi).
 > **Anh mentor deploy:** đọc **mục 3**.
 
 ---
@@ -57,7 +57,7 @@ Viết mới hoàn toàn, **tách riêng khỏi backend của web smartflood.vn 
 
 **Đã bỏ so với backend cũ** (theo yêu cầu): đăng nhập/đăng ký/OTP, email cảnh báo, điều khiển còi/bơm. App xem dữ liệu **không cần tài khoản**.
 
-**Công thức dự báo (chốt 28/10/2026):** $\hat H(t+5) = a_0 + a_1 H + a_2 V + a_3 R + a_4 S$ (độ ngập, tốc độ dâng, lượng mưa, thủy triều — bỏ nhiệt độ, độ ẩm, ánh sáng của báo cáo cũ). **Trạm tự dự báo** bằng hệ số đang có; **máy chủ học lại hệ số** mỗi ngày từ dữ liệu lúc đường ngập của chính trạm đó, chỉ nhận khi sai số giảm, rồi gửi xuống trạm. Mọi phiên bản được giữ lại (bảng `node_models`) nên xem được công thức mỗi trạm thay đổi ra sao. Chi tiết: mục 6 và [IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md) mục 5.
+**Công thức dự báo (chốt 29/10/2026):** $\hat H(t+5) = a_0 + a_1 H + a_2 V + a_3 R + a_4 S$ (độ ngập mm, tốc độ thoát nước mm/5 phút, lượng mưa trong 5 phút mm, thủy triều m — bỏ nhiệt độ, độ ẩm, ánh sáng của báo cáo cũ). **Trạm tự dự báo** bằng hệ số đang có; **máy chủ học lại hệ số** mỗi ngày từ dữ liệu lúc đường ngập của chính trạm đó, chỉ nhận khi sai số giảm, rồi gửi xuống trạm. Mọi phiên bản được giữ lại (bảng `node_models`) nên xem được công thức mỗi trạm thay đổi ra sao. Chi tiết: mục 6 và [IOT_DATA_FORMAT.md](IOT_DATA_FORMAT.md) mục 5.
 
 ---
 
@@ -114,7 +114,7 @@ Mở **terminal thứ 2** (cũng ở thư mục backend):
 npm run fake-node
 ```
 
-Lệnh này tạo 2 trạm thử `TEST-A01` (chỗ trũng, dễ ngập) và `TEST-A02` quanh ĐH Bách Khoa, cứ 5 giây gửi 1 lần (trạm thật 5 **phút** 1 lần), **đúng gói tin bản 3.0** (`water_level_mm`, `rise_rate_mm_min`, `rain_mm`, `tide_m`, giờ `hh:mm:ss`). Mưa giả lặp lại mỗi 10 phút: **5 phút mưa** (nước dâng) rồi **5 phút tạnh** (nước rút). Đợi khoảng 2–3 phút mới thấy ngập. Để chạy lâu cũng được, trên app sẽ thấy trạm đổi mức ngập qua lại.
+Lệnh này tạo 2 trạm thử `TEST-A01` (chỗ trũng, dễ ngập) và `TEST-A02` quanh ĐH Bách Khoa, cứ 5 giây gửi 1 lần (trạm thật 5 **phút** 1 lần), **đúng gói tin bản 3.1** (`water_level_mm`, `drain_mm_5min`, `rain_mm`, `tide_m`, ngày + giờ VN; có công thức thì thêm `predicted_water_level_mm`). Mưa giả lặp lại mỗi 10 phút: **5 phút mưa** (nước dâng) rồi **5 phút tạnh** (nước rút). Đợi khoảng 2–3 phút mới thấy ngập. Để chạy lâu cũng được, trên app sẽ thấy trạm đổi mức ngập qua lại.
 
 Trạm thử cũng **nghe hệ số máy chủ gửi xuống** giống trạm thật: lúc đầu chưa có công thức nên chưa dự báo; máy chủ học xong (Bước 7) thì nó in `TEST-A01 nhận công thức mới v1 từ máy chủ → dùng ngay` và bắt đầu gửi độ ngập dự báo.
 
@@ -226,7 +226,7 @@ Kiểm tra thêm ở `/api/v1/health` (mục `era`: đã kết nối chưa, nh�
 
 **Cách cầu nối làm việc:**
 - Client ID ngẫu nhiên, khác thiết bị → **không đá trạm rớt mạng**; chạy cùng lúc trên laptop và máy chủ cũng được.
-- **Tốc độ dâng tự tính** từ độ ngập: $(H_{\text{bây giờ}} - H_{\text{~5 phút trước}}) / \text{số phút}$. Mới bật máy chủ (chưa có số đo ~5 phút trước) thì chưa có.
+- E-Ra chưa có trường V nên cầu nối **không bắt buộc** `drain_mm_5min` (muốn có thì khai báo `ten_truong_era=drain_mm_5min` trong `ERA_FIELD_MAP`). Vẫn tự tính tốc độ dâng (kiểu cũ) để xem trên admin; số đo thiếu V không được dùng để học công thức.
 - Trạm E-Ra hay gửi vài giây 1 lần → chỉ lưu **1 lần đo mỗi `ERA_SAVE_INTERVAL_SEC` giây** (mặc định 60).
 - Bỏ qua giá trị cũ broker còn giữ lại lúc vừa kết nối (tin *retained*) → không lưu trùng.
 - Log luôn che token thành `***`. Trường lạ chưa khai báo thì log 1 lần `Thấy trường "temp" ... → bỏ qua`.
@@ -335,16 +335,16 @@ Một trạm (`/stations`) trông như sau:
   "expectedIntervalSec": 300, "isActive": true,
   "connectionState": "online", "lastSeenAt": "2026-10-25T07:05:02.000Z",
   "floodLevel": "warning", "isFloodInfoUsable": true, "influenceRadiusM": 100, "predictedLevel": "warning",
-  "latest": { "measuredAt": "...", "floodDepthCm": 12.5, "riseRateMmMin": 2.4, "rainMm": 12.5, "rainRateMmH": null, "rainMm1h": null,
+  "latest": { "measuredAt": "...", "floodDepthCm": 12.5, "drainMm5min": 6.5, "riseRateMmMin": null, "rainMm": 2.5, "rainRateMmH": null, "rainMm1h": null,
               "tideCm": 135, "temperatureC": null, "humidityPct": null, "lightLux": null, "batteryPct": null, "rssiDbm": null,
-              "predictedDepthCm": 13.7, "forecastMinutes": 5, "modelVersion": 2,
-              "timeSource": "device", "source": "mqtt", "extra": { "device_time": "14:05:30", "device_date": "2026-10-28" } },
+              "predictedDepthCm": 13.1, "forecastMinutes": 5, "modelVersion": 2,
+              "timeSource": "device", "source": "mqtt", "extra": { "device_time": "14:05:30", "device_date": "2026-10-29" } },
   "model": { "version": 2, "source": "server", "publishedAt": "...", "appliedAt": "...", "horizonMinutes": 5,
-             "intercept": 1.2, "coefficients": { "H": 0.97, "V": 4.9, "R": 0.03, "S": 2.1 }, "maeCm": 0.34, "...": "..." }
+             "intercept": 1.2, "coefficients": { "H": 0.97, "V": -0.4, "R": 0.6, "S": 2.1 }, "maeCm": 0.34, "...": "..." }
 }
 ```
 
-Đây là trạm A01 gửi gói tin bản 3.0 `{"id":"A01","date":"2026-10-28","time":"14:05:30","water_level_mm":125,"rise_rate_mm_min":2.4,"rain_mm":12.5,"tide_m":1.35,"predicted_water_level_mm":137,"model_version":2}`. Máy chủ đã đổi đơn vị: `floodDepthCm` = mm ÷ 10, `tideCm` = m × 100 (app hiển thị lại theo m), `predictedDepthCm` = mm ÷ 10. `null` = trạm không gửi; `model: null` = trạm chưa có công thức.
+Đây là trạm A01 gửi gói tin bản 3.1 `{"id":"A01","date":"2026-10-29","time":"14:05:30","water_level_mm":125,"predicted_water_level_mm":131,"drain_mm_5min":6.5,"rain_mm":2.5,"tide_m":1.35,"model_version":2}`. `drainMm5min` = V (mm/5 phút) giữ nguyên; `riseRateMmMin` chỉ có ở gói tin cũ 3.0. Máy chủ đã đổi đơn vị: `floodDepthCm` = mm ÷ 10, `tideCm` = m × 100 (app hiển thị lại theo m), `predictedDepthCm` = mm ÷ 10. `null` = trạm không gửi; `model: null` = trạm chưa có công thức.
 
 ### Admin (header `x-admin-key: <ADMIN_API_KEY>`)
 
@@ -363,7 +363,7 @@ Một trạm (`/stations`) trông như sau:
 
 ## 5. Cơ sở dữ liệu
 
-File tạo bảng: [`sql/001_create_tables.sql`](sql/001_create_tables.sql), thêm cột cho gói tin bên IoT: [`sql/002_iot_packet_v2.sql`](sql/002_iot_packet_v2.sql), gói tin 3.0 + máy chủ học lại: [`sql/003_server_retraining.sql`](sql/003_server_retraining.sql). Mỗi cột đều có chú thích tiếng Việt trong file.
+File tạo bảng: [`sql/001_create_tables.sql`](sql/001_create_tables.sql), thêm cột cho gói tin bên IoT: [`sql/002_iot_packet_v2.sql`](sql/002_iot_packet_v2.sql), gói tin 3.0 + máy chủ học lại: [`sql/003_server_retraining.sql`](sql/003_server_retraining.sql), gói tin 3.1 (cột V thoát nước): [`sql/004_drain_rate.sql`](sql/004_drain_rate.sql). Xóa dữ liệu cũ (chạy tay 1 lần, không phải migration): [`scripts/sql/xoa_du_lieu_cu_v3_1.sql`](scripts/sql/xoa_du_lieu_cu_v3_1.sql). Mỗi cột đều có chú thích tiếng Việt trong file.
 
 ```
 nodes (1 dòng = 1 thiết bị)               readings (1 dòng = 1 lần đo)
@@ -371,7 +371,8 @@ nodes (1 dòng = 1 thiết bị)               readings (1 dòng = 1 lần đo)
 id  (PK, vd "ND-Q1-01")  ◀───────┬────── node_id (FK)
 name, address                     │       measured_at, received_at, time_source
 latitude, longitude               │       flood_depth_cm, tide_cm                  ← bắt buộc
-                                  │       rise_rate_mm_min (tốc độ dâng, mm/phút)
+                                  │       drain_mm_5min (V thoát nước, mm/5 phút) ← bắt buộc từ bản 3.1
+                                  │       rise_rate_mm_min (tốc độ dâng, gói tin 3.0 cũ)
                                   │       rain_mm, rain_rate_mm_h, rain_mm_1h      ← bắt buộc ít nhất 1
 warning_cm, danger_cm, critical_cm│       temperature_c, humidity_pct, light_lux
 expected_interval_sec             │       battery_pct, rssi_dbm
@@ -423,8 +424,8 @@ Tất cả nằm ở [`src/config/floodRules.ts`](src/config/floodRules.ts). Mu�
 | **Đường ngập** (màn "Quanh bạn") | Lấy các con đường từ OpenStreetMap trong vùng ảnh hưởng, cắt đúng theo vòng tròn, tô theo mức ngập. Nhớ tạm 12 giờ |
 | **"Quanh bạn"** kết luận | Có node ngập trong 2 km → *Có ngập gần bạn* · không có, nhưng có node đang hoạt động → *Chưa ghi nhận ngập* · không có node nào hoạt động → *Chưa đủ dữ liệu* (**không bao giờ** nói "an toàn" khi thiếu dữ liệu) |
 | **Kiểm tra tuyến** | Vùng tránh = vùng ảnh hưởng + 50 m đệm; hỏi OSRM 1 lần lấy tối đa 4 tuyến, không có tuyến sạch thì thử đi vòng 2 bên vùng ngập (thêm 2 lần) |
-| **Đổi đơn vị** gói tin bên IoT | `water_level_mm` ÷ 10 → cm · `tide_m` × 100 → cm · `predicted_water_level_mm` ÷ 10 → cm · `rain_rate_mm_s` × 3600 → mm/giờ · `rain_mm`, `rise_rate_mm_min` giữ nguyên |
-| **Học lại công thức** ([`src/config/modelRules.ts`](src/config/modelRules.ts), [`src/training/`](src/training/)) | Mỗi ngày 00:30 giờ VN (`MODEL_RETRAIN_TIME`), dữ liệu 30 ngày gần nhất (`MODEL_TRAINING_DAYS`). Ghép cặp *(lúc t → 5 phút sau, lệch tối đa ±90 s)*, **chỉ giữ cặp đang ngập** (bỏ cặp khô cả 2 lúc). Cần ≥ 30 cặp (`MODEL_MIN_SAMPLES`) và độ ngập 5 phút sau phải dao động ≥ 5 mm. Học trên 80% cũ, kiểm tra trên 20% mới nhất; hệ số kéo về gần hệ số đang dùng (`MODEL_PRIOR_WEIGHT` = 0,2; trạm chưa có công thức thì kéo về $\hat H = H + 5V$). **Chỉ nhận khi sai số nhỏ hơn** công thức đang dùng (chưa có thì phải tốt hơn cách đoán "nước giữ nguyên") |
+| **Đổi đơn vị** gói tin bên IoT | `water_level_mm` ÷ 10 → cm · `tide_m` × 100 → cm · `predicted_water_level_mm` ÷ 10 → cm · `rain_rate_mm_s` × 3600 → mm/giờ · `drain_mm_5min`, `rain_mm`, `rise_rate_mm_min` giữ nguyên |
+| **Học lại công thức** ([`src/config/modelRules.ts`](src/config/modelRules.ts), [`src/training/`](src/training/)) | Mỗi ngày 00:30 giờ VN (`MODEL_RETRAIN_TIME`), dữ liệu 30 ngày gần nhất (`MODEL_TRAINING_DAYS`). Ghép cặp *(lúc t → 5 phút sau, lệch tối đa ±90 s)*, **chỉ giữ cặp đang ngập** (bỏ cặp khô cả 2 lúc). Cần ≥ 30 cặp (`MODEL_MIN_SAMPLES`) và độ ngập 5 phút sau phải dao động ≥ 5 mm. Học trên 80% cũ, kiểm tra trên 20% mới nhất; hệ số kéo về gần hệ số đang dùng (`MODEL_PRIOR_WEIGHT` = 0,2; trạm chưa có công thức thì kéo về $\hat H = H$). **Chỉ dùng số đo có V** (`drain_mm_5min`, gói tin 3.1). **Chỉ nhận khi sai số nhỏ hơn** công thức đang dùng (chưa có thì phải tốt hơn cách đoán "nước giữ nguyên") |
 | **Gửi hệ số xuống trạm** | Topic `smartflood/nodes/<id>/model`, QoS 1, **retained**. MQTT nối lại thì gửi lại bản mới nhất của máy chủ (phòng lỡ mất) |
 | **Giờ đo** | Node chỉ gửi giờ (`"14:05:30"`) → ghép ngày hôm nay theo giờ VN (gần nửa đêm thì lùi về hôm qua). Giờ node nhanh hơn 5 phút hoặc chậm hơn 15 phút, hay thiếu giờ → dùng giờ máy chủ và ghi lại để bên IoT sửa |
 
@@ -453,7 +454,7 @@ smartflood-backend/
 │   ├── import-sample.csv                     # Ví dụ file CSV để nhập dữ liệu cũ
 │   ├── import-sample.json                    # Ví dụ file JSON để nhập dữ liệu cũ
 │   ├── model-message.example.json            # ★ Ví dụ tin hệ số máy chủ gửi xuống trạm (topic .../model)
-│   ├── node-message.example.json             # ★ Ví dụ gói tin bản 3.0 của trạm A01 (đã có công thức)
+│   ├── node-message.example.json             # ★ Ví dụ gói tin bản 3.1 của trạm A01 (đã có công thức)
 │   ├── node-message.minimal.json             # Ví dụ tối thiểu: trạm mới lắp, chưa có công thức
 │   ├── node-message.old-format.example.json  # Ví dụ tin nhắn kiểu cũ (bản 1.0) — vẫn nhận
 │   └── node-message.v2.example.json          # Ví dụ gói tin bản 2.0 (26/10) — vẫn nhận
@@ -466,17 +467,19 @@ smartflood-backend/
 │       ├── admin.js                          # ★ Trang admin: xem trạm, sửa vị trí/ngưỡng, công thức + Học lại ngay, tin nhắn lỗi, gửi thử
 │       └── index.html                        # Trang admin: khung giao diện
 ├── scripts/
-│   ├── fakeNodePublisher.ts                  # GIẢ LẬP 2 TRẠM TEST-A01, A02: gửi gói tin 3.0, nhận hệ số máy chủ gửi xuống (npm run fake-node)
-│   └── importReadings.ts                     # NHẬP DỮ LIỆU CŨ từ file .json/.jsonl/.csv (npm run import)
+│   ├── fakeNodePublisher.ts                  # GIẢ LẬP 2 TRẠM TEST-A01, A02: gửi gói tin 3.1, nhận hệ số máy chủ gửi xuống (npm run fake-node)
+│   ├── importReadings.ts                     # NHẬP DỮ LIỆU CŨ từ file .json/.jsonl/.csv (npm run import)
+│   └── sql/xoa_du_lieu_cu_v3_1.sql           # Xóa dữ liệu cũ trước khi dùng gói tin 3.1 (chạy TAY 1 lần, giữ danh sách trạm)
 ├── sql/
 │   ├── 001_create_tables.sql                 # ★ Tạo 4 bảng: nodes, readings, node_models, ingest_errors
 │   ├── 002_iot_packet_v2.sql                 # Thêm cột lượng mưa + cường độ mưa cho gói tin bên IoT (26/10)
-│   └── 003_server_retraining.sql             # Gói tin 3.0 (tốc độ dâng) + máy chủ học lại: thêm cột, bảng nhật ký học (28/10)
+│   ├── 003_server_retraining.sql             # Gói tin 3.0 (tốc độ dâng) + máy chủ học lại: thêm cột, bảng nhật ký học (28/10)
+│   └── 004_drain_rate.sql                    # Gói tin 3.1: thêm cột drain_mm_5min (V = tốc độ thoát nước) (29/10)
 └── src/
     ├── config/
     │   ├── appConfig.ts                      # Toàn bộ cấu hình, đọc từ file .env
     │   ├── floodRules.ts                     # Ngưỡng mặc định khi node mới xuất hiện (cm nước trên mặt đường). Admin sửa riêng từng...
-    │   ├── modelRules.ts                     # Công thức bản 3.0: biến H, V, R, S, dự báo 5 phút, topic gửi hệ số
+    │   ├── modelRules.ts                     # Công thức bản 3.1: biến H, V, R, S, dự báo 5 phút, topic gửi hệ số
     │   └── resolveAdminKey.ts                # Lấy khóa admin; máy chủ thật bắt buộc khóa ≥ 16 ký tự
     ├── db/
     │   ├── Database.ts                       # "Ổ CẮM" CƠ SỞ DỮ LIỆU — backend chỉ dùng 3 hàm này, nên chạy được với 2 loại DB:

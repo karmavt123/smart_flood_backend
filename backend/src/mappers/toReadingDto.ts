@@ -10,6 +10,7 @@ export function toReadingDto(record: ReadingRecord): ReadingDto {
     timeSource: record.time_source,
     floodDepthCm: record.flood_depth_cm,
     riseRateMmMin: record.rise_rate_mm_min ?? null,
+    drainMm5min: record.drain_mm_5min ?? null,
     rainMm: record.rain_mm ?? null,
     rainRateMmH: record.rain_rate_mm_h ?? null,
     rainMm1h: record.rain_mm_1h ?? null,

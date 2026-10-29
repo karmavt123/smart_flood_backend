@@ -8,9 +8,11 @@ export interface SensorReading {
   timestamp: string;
   /** Độ sâu nước ngập trên mặt đường (cm), 0 = khô. */
   waterLevelCm: number | null;
-  /** Tốc độ dâng trạm tự tính (mm/phút): dương = nước đang lên, âm = đang rút. */
+  /** Kiểu gói tin cũ (3.0): tốc độ dâng (mm/phút). Gói tin 3.1 không còn gửi — app không hiển thị. */
   riseRateMmMin: number | null;
-  /** Lượng mưa node đo được (mm). */
+  /** V — tốc độ thoát nước qua cống rãnh trạm tự tính (mm/5 phút, gói tin 3.1). */
+  drainMm5min: number | null;
+  /** R — lượng mưa node đo được (mm); gói tin 3.1 = mưa trong 5 phút. */
   rainMm: number | null;
   /** Cường độ mưa (mm/giờ). Node gửi mm/giây, máy chủ đã đổi sang mm/giờ cho dễ đọc. */
   rainRateMmH: number | null;

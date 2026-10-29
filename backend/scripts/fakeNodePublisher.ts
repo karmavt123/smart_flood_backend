@@ -1,10 +1,10 @@
 /**
- * GIẢ LẬP TRẠM ĐO — làm đúng việc 1 trạm ESP32 thật làm (gói tin bản 3.0, xem IOT_DATA_FORMAT.md),
+ * GIẢ LẬP TRẠM ĐO — làm đúng việc 1 trạm ESP32 thật làm (gói tin bản 3.1, xem IOT_DATA_FORMAT.md),
  * để xem app/admin chạy ra sao khi chưa có trạm thật:
  *
  *   1. GỬI số đo lên topic smartflood/nodes/<id>/data:
- *        { "id": "TEST-A01", "time": "14:05:30", "water_level_mm": 125, "rise_rate_mm_min": 2.4,
- *          "rain_mm": 1.5, "tide_m": 1.35, "predicted_water_level_mm": 137, "model_version": 2 }
+ *        { "id": "TEST-A01", "date": "2026-10-29", "time": "14:05:30", "water_level_mm": 125,
+ *          "predicted_water_level_mm": 137, "drain_mm_5min": 6.2, "rain_mm": 1.5, "tide_m": 1.35, "model_version": 2 }
  *   2. NGHE topic smartflood/nodes/<id>/model: máy chủ học xong công thức mới thì gửi xuống,
  *      trạm giả nhận và DÙNG NGAY để tính độ ngập dự báo 5 phút tới.
  *      Chưa nhận công thức nào thì không gửi dự báo (giống trạm thật lúc mới lắp).
@@ -52,7 +52,7 @@ function offset(northM: number, eastM: number) {
   };
 }
 
-/** Công thức máy chủ gửi xuống: Ĥ(mm) = intercept + H·water_level_mm + V·rise_rate_mm_min + R·rain_mm + S·tide_m */
+/** Công thức máy chủ gửi xuống: Ĥ(mm) = intercept + H·water_level_mm + V·drain_mm_5min + R·rain_mm + S·tide_m */
 interface ReceivedModel {
   version: number;
   intercept: number;
@@ -66,8 +66,8 @@ interface FakeNode {
   terrain: number;
   /** Độ sâu nước ngập (cm). */
   depth: number;
-  /** Lịch sử độ ngập (mm) theo thời gian, để tính tốc độ dâng trong 5 phút. */
-  history: { at: number; mm: number }[];
+  /** Lượng nước thoát qua cống từng lần gửi (mm), để cộng thành V = "thoát trong 5 phút gần nhất". */
+  drainLog: { at: number; mm: number }[];
   /** Lượng mưa rơi xuống từng lần gửi, để cộng thành "mưa trong 5 phút gần nhất". */
   rainLog: { at: number; mm: number }[];
   /** Công thức đang dùng (máy chủ gửi xuống); null = chưa có, chưa dự báo. */
@@ -78,24 +78,27 @@ interface FakeNode {
 
 // TEST-A01 ở chỗ trũng (dễ ngập), TEST-A02 ở chỗ cao hơn — giống 2 trạm thật A01, A02.
 const nodes: FakeNode[] = [
-  { id: 'TEST-A01', location: offset(300, 200), terrain: 1.8, depth: 0, history: [], rainLog: [], model: null, announceModel: false },
-  { id: 'TEST-A02', location: offset(-600, 900), terrain: 0.9, depth: 0, history: [], rainLog: [], model: null, announceModel: false },
+  { id: 'TEST-A01', location: offset(300, 200), terrain: 1.8, depth: 0, drainLog: [], rainLog: [], model: null, announceModel: false },
+  { id: 'TEST-A02', location: offset(-600, 900), terrain: 0.9, depth: 0, drainLog: [], rainLog: [], model: null, announceModel: false },
 ];
 
 const client = mqtt.connect(url, { username: username || undefined, password: password || undefined });
 const startedAt = Date.now();
 
-/** Giờ Việt Nam hiện tại dạng "14:05:30" — trạm thật chỉ gửi giờ, không có ngày. */
+/** Giờ Việt Nam hiện tại dạng "14:05:30". */
 function vietnamClockNow(): string {
   return new Date().toLocaleTimeString('en-GB', { hour12: false, timeZone: 'Asia/Ho_Chi_Minh' });
 }
 
-/** Độ ngập (mm) lúc ~5 phút trước; chưa chạy đủ 5 phút thì lấy lần đo đầu tiên. */
-function depthAbout5MinutesAgo(node: FakeNode, now: number): { mm: number; minutes: number } {
-  node.history = node.history.filter((h) => now - h.at <= FIVE_MINUTES_MS + 60_000);
-  const old = node.history.find((h) => now - h.at <= FIVE_MINUTES_MS) ?? node.history[0];
-  if (!old) return { mm: 0, minutes: 0 };
-  return { mm: old.mm, minutes: (now - old.at) / 60_000 };
+/** Ngày Việt Nam hiện tại dạng "2026-10-29". */
+function vietnamDateNow(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' });
+}
+
+/** Cộng các giá trị trong 5 phút gần nhất (bỏ bớt bản ghi cũ hơn). */
+function sumLast5Minutes(log: { at: number; mm: number }[], now: number) {
+  while (log.length > 0 && now - log[0]!.at >= FIVE_MINUTES_MS) log.shift();
+  return log.reduce((sum, item) => sum + item.mm, 0);
 }
 
 function tick() {
@@ -107,37 +110,34 @@ function tick() {
 
   for (const node of nodes) {
     const inflow = (rainRateMmH / 60) * node.terrain * 1.2 + Math.max(0, tideCm - 170) * 0.02 * node.terrain;
-    node.depth = Math.max(0, node.depth + inflow - node.depth * 0.04);
+    const outflowCm = node.depth * 0.04; // nước thoát qua cống lần này
+    node.depth = Math.max(0, node.depth + inflow - outflowCm);
     const levelMm = Math.round(node.depth * 10);
 
-    // Tốc độ dâng = (mực nước bây giờ − 5 phút trước) ÷ 5 (mm/phút).
-    // Mới bật máy, chưa đủ ~5 phút lịch sử thì CHƯA tính được → không gửi (giống trạm thật).
-    const past = depthAbout5MinutesAgo(node, now);
-    const riseRate = past.minutes >= 4.5 ? (levelMm - past.mm) / past.minutes : null;
-    node.history.push({ at: now, mm: levelMm });
-
-    // Lượng mưa (mm) = mưa rơi trong 5 phút gần nhất.
+    // V = nước thoát qua cống trong 5 phút gần nhất (mm/5 phút); R = mưa rơi trong 5 phút gần nhất (mm).
+    node.drainLog.push({ at: now, mm: outflowCm * 10 });
     node.rainLog.push({ at: now, mm: (rainRateMmH / 3600) * intervalSec });
-    node.rainLog = node.rainLog.filter((r) => now - r.at < FIVE_MINUTES_MS);
-    const rainMm = node.rainLog.reduce((sum, r) => sum + r.mm, 0);
+    const drainMm = sumLast5Minutes(node.drainLog, now);
+    const rainMm = sumLast5Minutes(node.rainLog, now);
 
     const message: Record<string, unknown> = {
       id: node.id,
+      date: vietnamDateNow(),
       time: vietnamClockNow(),
       water_level_mm: levelMm,
-      rise_rate_mm_min: riseRate === null ? null : round(riseRate, 2),
+      drain_mm_5min: round(drainMm, 1),
       rain_mm: round(rainMm, 2),
       tide_m: round(tideCm / 100, 2),
       // 2 trường dưới trạm thật KHÔNG gửi: vị trí do admin nhập; is_test để đánh dấu dữ liệu giả.
       location: node.location,
       is_test: true,
     };
-    if (node.model && riseRate !== null) {
+    if (node.model) {
       const c = node.model.coef;
       const predicted =
         node.model.intercept +
         (c.H ?? 0) * levelMm +
-        (c.V ?? 0) * riseRate +
+        (c.V ?? 0) * drainMm +
         (c.R ?? 0) * rainMm +
         (c.S ?? 0) * (tideCm / 100);
       message.predicted_water_level_mm = Math.round(Math.max(0, predicted));

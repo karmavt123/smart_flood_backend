@@ -1,4 +1,4 @@
-id,date,time,water_level_mm,rise_rate_mm_min,rain_mm,tide_m
-MAU-A02,25/10/2026,14:00:00,0,,0,1.10
-MAU-A02,25/10/2026,14:05:00,31,6.2,1.2,1.12
-MAU-A02,25/10/2026,14:10:00,84,10.6,4.0,1.13
+id,date,time,water_level_mm,predicted_water_level_mm,drain_mm_5min,rain_mm,tide_m
+MAU-A02,25/10/2026,14:00:00,0,,0,0,1.10
+MAU-A02,25/10/2026,14:05:00,31,70,1.5,4.2,1.12
+MAU-A02,25/10/2026,14:10:00,84,120,5.8,6.0,1.13

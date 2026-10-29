@@ -36,7 +36,7 @@ const nodesInTraining = new Set<string>();
  *   1. Ghép cặp (lúc t → lúc t+5 phút) trong N ngày gần nhất, CHỈ giữ lúc đang ngập.
  *   2. Chưa đủ mẫu → giữ công thức cũ.
  *   3. Chia theo thời gian: 80% cũ để học, 20% mới nhất để KIỂM TRA (công thức chưa thấy phần này bao giờ).
- *   4. Học hệ số, kéo về gần hệ số trạm đang dùng (chưa có thì kéo về Ĥ = H + 5·V).
+ *   4. Học hệ số, kéo về gần hệ số trạm đang dùng (chưa có thì kéo về Ĥ = H).
  *      Độ ngập trong các mẫu gần như không đổi → chưa học được gì, giữ công thức cũ.
  *   5. So sai số trên phần kiểm tra: chỉ nhận khi TỐT HƠN công thức đang dùng
  *      (chưa có công thức thì phải tốt hơn cách đoán "5 phút nữa nước vẫn y như bây giờ").

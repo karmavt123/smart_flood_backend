@@ -9,6 +9,8 @@ export interface ParsedNodeMessage {
   floodDepthCm: number;
   /** Tốc độ dâng trạm tự tính (mm/phút), âm = nước đang rút; null = trạm không gửi. */
   riseRateMmMin: number | null;
+  /** V — tốc độ thoát nước trạm tự tính (mm/5 phút, bản 3.1); null = gói tin kiểu cũ không có. */
+  drainMm5min: number | null;
   /** Trạm đang dự báo bằng phiên bản công thức nào; null = chưa có công thức. */
   modelVersion: number | null;
   /** Lượng mưa node đo (mm). */

@@ -2,6 +2,7 @@
 export const ERA_TARGET_FIELDS = [
   'water_level_mm',
   'rise_rate_mm_min',
+  'drain_mm_5min',
   'rain_mm',
   'tide_m',
   'rssi_dbm',

@@ -11,7 +11,9 @@ export interface ReadingDto {
   floodDepthCm: number;
   /** Tốc độ dâng trạm tự tính (mm/phút), âm = đang rút; null = trạm không gửi. */
   riseRateMmMin: number | null;
-  /** Lượng mưa node đo (mm); null = node không gửi. */
+  /** V — tốc độ thoát nước trạm gửi (mm/5 phút, gói tin 3.1); null = trạm không gửi. */
+  drainMm5min: number | null;
+  /** Lượng mưa node đo (mm; gói tin 3.1 = mưa trong 5 phút); null = node không gửi. */
   rainMm: number | null;
   /** Cường độ mưa (mm/giờ); null = node không gửi. */
   rainRateMmH: number | null;

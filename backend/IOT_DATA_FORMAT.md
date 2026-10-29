@@ -1,14 +1,22 @@
 # Đặc tả dữ liệu trạm ↔ máy chủ SmartFlood
 
-> Gửi cho **bên IoT** (firmware trạm ESP32). **Phiên bản 3.0, ngày 28/10/2026.**
+> Gửi cho **bên IoT** (firmware trạm ESP32). **Phiên bản 3.1, ngày 29/10/2026.**
 > Tin nhắn sai định dạng **không bị mất âm thầm**: máy chủ ghi lại kèm lý do ở trang `/admin` → **Tin nhắn lỗi**.
 >
-> **Đổi gì so với bản 2.0 (26/10):**
+> **Đổi gì so với bản 3.0 (28/10):**
+> - **V đổi nghĩa:** không còn là tốc độ dâng mà là **tốc độ thoát nước qua cống rãnh**, đơn vị **mm/5 phút**, gửi ở trường mới **`drain_mm_5min`** — **bắt buộc**. Trạm **tự tính** V, máy chủ chỉ nhận và hiển thị. Bỏ `rise_rate_mm_min`.
+> - **R** (`rain_mm`) chốt là **lượng mưa trong 5 phút** (mm/5 phút).
+> - Gói tin đủ **5 thành phần của công thức**: H, $\hat H$ (dự báo sau 5 phút), V, R, S.
+> - Máy chủ **không giới hạn khoảng** cho V và R (số nào cũng nhận).
+> - `water_level_mm` là **độ sâu nước trên mặt đường** (đường khô = 0), **không phải khoảng cách cảm biến đo được**.
+> - App hiện ô **"Sau 5 phút"** cạnh độ ngập hiện tại; trạm chưa gửi dự báo thì ghi "Chưa có thông tin".
+> - Gói tin bản 3.0 / 2.0 / 1.0 vẫn nhận (mục 3.4).
+>
+> **Bản 3.0 (28/10) đổi gì so với bản 2.0 (26/10):**
 > - **Bỏ LoRa và gateway.** Mỗi trạm ESP32 tự bắt **Wi-Fi** và gửi MQTT thẳng lên máy chủ, **5 phút 1 lần**.
-> - Gói tin có thêm **tốc độ dâng** (`rise_rate_mm_min`) và **độ ngập dự báo sau 5 phút** (`predicted_water_level_mm`).
+> - Gói tin có thêm **độ ngập dự báo sau 5 phút** (`predicted_water_level_mm`).
 > - **Công thức mới:** bỏ nhiệt độ, độ ẩm, ánh sáng; thêm **lượng mưa** và **thủy triều** (mục 5).
 > - **Máy chủ học lại hệ số mỗi ngày** rồi gửi xuống trạm qua topic mới `smartflood/nodes/<id>/model` (mục 5.3).
-> - Kiểu tin nhắn bản 2.0 và 1.0 vẫn nhận (mục 3.4).
 
 ---
 
@@ -22,7 +30,7 @@ Trạm (ESP32 + cảm biến) ──── Wi-Fi + MQTT ────▶ Máy ch�
 ```
 
 - **Mỗi lần đo = 1 tin nhắn JSON**, trạm publish lên MQTT.
-- Máy chủ **nhận, đổi đơn vị, lưu và hiển thị**: mức ngập (An toàn / Cảnh báo / Nguy hiểm / Rất nguy hiểm), tốc độ dâng, mưa, triều, dự báo, lịch sử đo.
+- Máy chủ **nhận, đổi đơn vị, lưu và hiển thị**: mức ngập (An toàn / Cảnh báo / Nguy hiểm / Rất nguy hiểm), độ ngập dự báo sau 5 phút, thoát nước, mưa, triều, lịch sử đo.
 - Máy chủ **học lại công thức dự báo** từ dữ liệu của chính trạm đó, rồi **gửi hệ số mới xuống trạm**. Trạm tự dự báo bằng hệ số đó, nên **mất mạng trạm vẫn dự báo được** (vd để bật còi, đèn tại chỗ).
 
 ## 2. Kết nối MQTT
@@ -46,30 +54,32 @@ Tài khoản trạm **chỉ được ghi** vào `smartflood/nodes/+/data` và **
 
 ## 3. Các trường của tin nhắn số đo
 
-### 3.1. Gói tin bản 3.0
+### 3.1. Gói tin bản 3.1
 
 | Thông tin | Trường JSON | Kiểu | Đơn vị trạm gửi | Khoảng hợp lệ | Máy chủ lưu thành |
 |---|---|---|---|---|---|
 | Mã trạm | `id` | chuỗi | — | chữ không dấu, số, `-` `_` `.`; ≤ 64 ký tự | mã trạm, vd `A01` |
 | Giờ đo | `time` | chuỗi | `"hh:mm:ss"` giờ VN | 00:00:00 → 23:59:59 | thời điểm đo (mục 4) |
-| Ngày đo | `date` | chuỗi | `"2026-10-28"` | | **nên gửi** (Wi-Fi có NTP nên lấy được ngày) |
-| Độ ngập hiện tại | `water_level_mm` | số | **mm** | −200 → 5000 | ÷ 10 → **cm** (để tính mức ngập) |
-| Tốc độ dâng | `rise_rate_mm_min` | số | **mm/phút** | −1000 → 1000 | giữ nguyên. **Âm = nước đang rút** |
-| Lượng mưa | `rain_mm` | số | **mm** | 0 → 100000 | giữ nguyên |
-| Thủy triều | `tide_m` | số | **m** | −10 → 10 | × 100 → cm; app hiển thị lại theo **m** |
-| Độ ngập dự báo sau 5 phút | `predicted_water_level_mm` | số | **mm** | −200 → 5000 | ÷ 10 → cm |
-| Đang dùng công thức nào | `model_version` | số nguyên | — | ≥ 1 | để biết trạm đã nhận hệ số mới chưa |
+| Ngày đo | `date` | chuỗi | `"2026-10-29"` | | **nên gửi** (Wi-Fi có NTP nên lấy được ngày) |
+| **H** — độ ngập hiện tại | `water_level_mm` | số | **mm** | −200 → 5000 | ÷ 10 → **cm** (để tính mức ngập) |
+| **Ĥ** — độ ngập dự báo sau 5 phút | `predicted_water_level_mm` | số | **mm** | −200 → 5000 | ÷ 10 → cm, app hiện ở ô **"Sau 5 phút"** |
+| **V** — tốc độ thoát nước | `drain_mm_5min` | số | **mm/5 phút** | không giới hạn | giữ nguyên |
+| **R** — lượng mưa trong 5 phút | `rain_mm` | số | **mm/5 phút** | không giới hạn | giữ nguyên |
+| **S** — thủy triều | `tide_m` | số | **m** | −10 → 10 | × 100 → cm; app hiển thị lại theo **m** |
+| Đang dùng công thức nào | `model_version` | số nguyên | — | ≥ 1 | để biết trạm đang dự báo bằng hệ số nào |
 
-**Bắt buộc** (thiếu thì tin nhắn bị từ chối): `id` (hoặc mã trong topic), `water_level_mm`, `rain_mm`, `tide_m`.
+**Bắt buộc** (thiếu thì tin nhắn bị từ chối): `id` (hoặc mã trong topic), `water_level_mm`, `drain_mm_5min`, `rain_mm`, `tide_m`.
 
-**Bắt buộc khi trạm đã có công thức:** `rise_rate_mm_min`, `predicted_water_level_mm`, `model_version`.
-**Trạm chưa có công thức** (mới lắp, máy chủ chưa học xong) thì **không gửi** `predicted_water_level_mm` và `model_version` — app sẽ ghi "Trạm chưa có dự đoán", không tự bịa số.
+**Nên gửi:** `predicted_water_level_mm` (+ `model_version` nếu dự báo bằng hệ số máy chủ gửi). Thiếu thì **vẫn nhận**, app ghi **"Chưa có thông tin"** ở ô "Sau 5 phút" — không tự bịa số.
 
-**Tốc độ dâng tính thế nào:**
+**Ý nghĩa từng số (nhóm IoT tự đo / tự tính, máy chủ không tính lại):**
 
-$$V = \frac{H(\text{bây giờ}) - H(\text{5 phút trước})}{5} \quad (\text{mm/phút})$$
+- $H$ = (độ cao cảm biến lúc đường khô − khoảng cách đo được) × 10, **không âm**. Ví dụ cảm biến cách mặt đường khô 100 cm, đo được 87,5 cm → $H = 125$ mm. **Đừng gửi thẳng khoảng cách đo được.**
+- $V$ = lượng nước thoát qua cống rãnh trong 5 phút, **mm/5 phút, ≥ 0** (thoát càng nhiều số càng lớn) → hệ số của V trong công thức sẽ **âm**.
+- $R$ = lượng mưa rơi trong 5 phút vừa qua, mm (không cộng dồn cả ngày).
+- $S$ = thủy triều, mét.
 
-Ví dụ 5 phút trước 113 mm, bây giờ 125 mm → $V = (125 - 113) / 5 = 2{,}4$ mm/phút. Mới bật máy, chưa có số đo 5 phút trước → **không gửi** `rise_rate_mm_min` (đừng gửi 0).
+**Xu hướng nước trên app** lấy từ chính số trạm gửi: $\hat H - H > 2$ mm → **Đang dâng**, $< -2$ mm → **Đang rút**, còn lại → **Ổn định**. Không có $\hat H$ thì app không ghi xu hướng.
 
 **Không đo được thì BỎ TRƯỜNG ĐÓ ĐI hoặc ghi `null`. Tuyệt đối không ghi `0` thay cho "không đo được"**, vì máy chủ sẽ hiểu là đo được 0 thật (vd mưa = 0 là "trời không mưa").
 
@@ -84,6 +94,7 @@ Số gửi dạng chuỗi (`"125"`, `"1.35"`) cũng nhận. Trường nào **kh�
 | `battery_pct` | số | % | 0 → 100 | Pin còn lại |
 | `temperature_c` | số | °C | −20 → 80 | Nhiệt độ (không còn dùng trong công thức, gửi thì app vẫn hiện) |
 | `rain_rate_mm_s` | số | mm/giây | 0 → 1 | Cường độ mưa (gói tin bản 2.0) |
+| `rise_rate_mm_min` | số | mm/phút | −1000 → 1000 | Tốc độ dâng (gói tin bản 3.0) — bản 3.1 **không dùng nữa** |
 | `location` | object | độ | | `{ "lat": 10.7769, "lng": 106.7009 }` — chỉ dùng khi trạm **chưa có vị trí** trên máy chủ |
 
 App **ẩn** mục nào trạm không gửi.
@@ -99,11 +110,13 @@ Máy chủ so **độ sâu nước ngập (cm)** = `water_level_mm ÷ 10` với 
 | 25 → < 40 cm | Nguy hiểm |
 | ≥ 40 cm | Rất nguy hiểm |
 
-> ⚠ Máy chủ đang hiểu `water_level_mm` là **độ sâu nước trên mặt đường (đường khô = 0)**. Nếu thật ra là cao độ so với 1 mốc khác thì mức ngập sẽ sai — xem câu hỏi 1, mục 10.
+> ⚠ `water_level_mm` phải là **độ sâu nước trên mặt đường (đường khô = 0)**. Gửi nhầm khoảng cách cảm biến đo được thì đường khô sẽ hiện "Rất nguy hiểm" (khoảng cách lớn nhất lúc đường khô).
 
 ### 3.4. Kiểu tin nhắn cũ (vẫn nhận)
 
-| Bản 3.0 | Bản 1.0 tương đương |
+Tin nhắn có `rise_rate_mm_min` (bản 3.0), `rain_rate_mm_s` (bản 2.0) hoặc tên trường bản 1.0 được coi là **kiểu cũ**: vẫn nhận dù **không có** `drain_mm_5min`. Nhưng thiếu V thì máy chủ **không dùng** số đo đó để học công thức.
+
+| Bản 3.1 | Bản 1.0 tương đương |
 |---|---|
 | `id` | `node_id` |
 | `time` (+ `date`) | `measured_at` (ISO 8601 hoặc số Unix) |
@@ -131,19 +144,19 @@ Trạm có Wi-Fi nên **lấy được giờ chuẩn qua mạng (NTP)** — nên
 
 ## 5. Công thức dự báo và vòng học lại
 
-### 5.1. Công thức (bản 3.0)
+### 5.1. Công thức (bản 3.1)
 
 $$\hat{H}(t+5) = a_0 + a_1 H + a_2 V + a_3 R + a_4 S$$
 
 | Biến | Ý nghĩa | Lấy từ trường | Đơn vị |
 |---|---|---|---|
 | $H$ | độ ngập hiện tại | `water_level_mm` | mm |
-| $V$ | tốc độ dâng | `rise_rate_mm_min` | mm/phút |
-| $R$ | lượng mưa | `rain_mm` | mm |
+| $V$ | tốc độ thoát nước (cống rãnh) | `drain_mm_5min` | mm/5 phút |
+| $R$ | lượng mưa trong 5 phút | `rain_mm` | mm/5 phút |
 | $S$ | thủy triều | `tide_m` | m |
 | $\hat{H}(t+5)$ | độ ngập dự báo 5 phút tới | gửi ở `predicted_water_level_mm` | mm |
 
-**Hệ số dùng ĐÚNG đơn vị trong gói tin**, trạm cứ thế thay số vào, không phải đổi đơn vị. Kết quả âm thì gửi 0.
+**Hệ số dùng ĐÚNG đơn vị trong gói tin**, trạm cứ thế thay số vào, không phải đổi đơn vị. Kết quả âm thì gửi 0. Thoát nước làm nước rút nên $a_2$ dự kiến **âm**.
 
 Công thức cũ trong báo cáo ($H, V$, nhiệt độ $T$, độ ẩm $RH$, ánh sáng $L$) **không dùng nữa**.
 
@@ -151,8 +164,8 @@ Công thức cũ trong báo cáo ($H, V$, nhiệt độ $T$, độ ẩm $RH$, á
 
 1. **Mỗi ngày lúc 00:30** (giờ VN), với từng trạm: ghép cặp *(số đo lúc t → độ ngập thật lúc t+5 phút)* trong **30 ngày gần nhất**.
 2. **Chỉ học lúc đường đang ngập**: bỏ cặp mà độ ngập lúc t **và** lúc t+5 phút đều ≤ 0. Giữ cặp lúc t còn khô nhưng 5 phút sau đã có nước (lúc nước *bắt đầu* lên — lúc cần dự báo nhất).
-3. Cần **ít nhất 30 cặp** như vậy (≈ 2,5 giờ ngập), và độ ngập trong đó phải có lên có xuống (nước đứng yên suốt thì chưa học được gì). Chưa đủ thì giữ công thức cũ.
-4. Học hệ số mới, **kéo về gần hệ số trạm đang dùng** (dùng cả hệ số cũ lẫn dữ liệu mới). Trạm chưa có công thức thì kéo về công thức đơn giản nhất $\hat{H} = H + 5V$ ("nước tiếp tục dâng đúng tốc độ hiện tại") — chỉ dùng làm điểm tựa khi học, không gửi xuống trạm.
+3. Chỉ dùng số đo **có V** (gói tin 3.1). Cần **ít nhất 30 cặp** như vậy (≈ 2,5 giờ ngập), và độ ngập trong đó phải có lên có xuống (nước đứng yên suốt thì chưa học được gì). Chưa đủ thì giữ công thức cũ.
+4. Học hệ số mới, **kéo về gần hệ số trạm đang dùng** (dùng cả hệ số cũ lẫn dữ liệu mới). Trạm chưa có công thức thì kéo về công thức đơn giản nhất $\hat{H} = H$ ("5 phút nữa nước vẫn như bây giờ") — chỉ dùng làm điểm tựa khi học, không gửi xuống trạm.
 5. Giữ 20% dữ liệu mới nhất để **kiểm tra**: chỉ nhận công thức mới khi **sai số nhỏ hơn** công thức đang dùng. Trạm chưa có công thức thì phải tốt hơn cách đoán "5 phút nữa nước vẫn như bây giờ".
 6. Lưu phiên bản mới (v1, v2, v3…) và **gửi xuống trạm** qua MQTT.
 
@@ -167,8 +180,8 @@ Trạm **subscribe** `smartflood/nodes/<id>/model` (QoS 1). Máy chủ gửi tin
   "version": 2,
   "horizon_min": 5,
   "intercept": 1.2,
-  "coef": { "H": 0.97, "V": 4.9, "R": 0.03, "S": 2.1 },
-  "trained_at": "2026-10-28T17:30:05.000Z",
+  "coef": { "H": 0.97, "V": -0.4, "R": 0.6, "S": 2.1 },
+  "trained_at": "2026-10-29T17:30:05.000Z",
   "samples": 146,
   "mae_mm": 3.4
 }
@@ -184,7 +197,7 @@ Trạm làm 4 việc:
 ### 5.4. Gửi công thức đang dùng lên (trường `model`)
 
 ```json
-"model": { "version": 2, "horizon_min": 5, "intercept": 1.2, "coef": { "H": 0.97, "V": 4.9, "R": 0.03, "S": 2.1 } }
+"model": { "version": 2, "horizon_min": 5, "intercept": 1.2, "coef": { "H": 0.97, "V": -0.4, "R": 0.6, "S": 2.1 } }
 ```
 
 Nếu sau này bên IoT tự có hệ số ban đầu (vd học từ dữ liệu cũ), cũng gửi theo cách này với `version` = 1: máy chủ sẽ học tiếp từ đó.
@@ -196,141 +209,65 @@ Nếu sau này bên IoT tự có hệ số ban đầu (vd học từ dữ liệu
 ```json
 {
   "id": "A01",
-  "date": "2026-10-28",
+  "date": "2026-10-29",
   "time": "14:05:30",
   "water_level_mm": 125,
-  "rise_rate_mm_min": 2.4,
-  "rain_mm": 12.5,
+  "predicted_water_level_mm": 131,
+  "drain_mm_5min": 6.5,
+  "rain_mm": 2.5,
   "tide_m": 1.35,
-  "predicted_water_level_mm": 137,
   "model_version": 2
 }
 ```
 
-Máy chủ lưu: ngập **12,5 cm** (Cảnh báo), đang dâng **2,4 mm/phút**, mưa **12,5 mm**, triều **1,35 m**, dự báo 5 phút tới **13,7 cm**, dùng công thức v2.
+Máy chủ lưu: ngập **12,5 cm** (Cảnh báo), sau 5 phút **13,1 cm** (app ghi **Đang dâng**), thoát nước **6,5 mm/5 phút**, mưa 5 phút **2,5 mm**, triều **1,35 m**, dùng công thức v2.
 
-**Trạm mới lắp, chưa có công thức** (file `examples/node-message.minimal.json`):
+**Đường khô, chưa có dự báo** (file `examples/node-message.minimal.json`):
 
 ```json
-{ "id": "A01", "date": "2026-10-28", "time": "14:05:30", "water_level_mm": 0, "rise_rate_mm_min": 0, "rain_mm": 0, "tide_m": 1.2 }
+{ "id": "A01", "date": "2026-10-29", "time": "14:05:30", "water_level_mm": 0, "drain_mm_5min": 0, "rain_mm": 0, "tide_m": 1.2 }
 ```
 
-## 7. Code ESP32 mẫu (khung chính)
+## 7. Code ESP32 mẫu
 
-Arduino, thư viện **PubSubClient** + **ArduinoJson 7**. Các hàm `docMucNuocMm()`, `docLuongMuaMm()`, `docTrieuM()` là phần đọc cảm biến, bên IoT tự viết.
+File đầy đủ: **`smartflood_gui.ino`** (thư mục `firmware/smartflood_gui/` của dự án) (nối Wi-Fi, MQTT, giờ VN, nhận hệ số, gửi 5 phút/lần). Nhóm IoT chỉ viết hàm `docSoLieu()` (đo + tính H, Ĥ, V, R, S). Phần gửi:
 
 ```cpp
-#include <WiFi.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
-#include <Preferences.h>
-#include <time.h>
-
-const char* ID = "A01";
-const char* TOPIC_DATA  = "smartflood/nodes/A01/data";
-const char* TOPIC_MODEL = "smartflood/nodes/A01/model";
-
-WiFiClient net;
-PubSubClient mqtt(net);
-Preferences store;
-
-// Công thức đang dùng: version = 0 nghĩa là CHƯA có
-int modelVersion = 0;
-float a0, aH, aV, aR, aS;
-bool baoCongThucMoi = false;
-
-float mucNuoc5PhutTruoc = NAN;     // để tính tốc độ dâng
-
-void nhanCongThuc(char* topic, byte* payload, unsigned int length) {
+// Giá trị nào CHƯA CÓ thì truyền NAN → không gửi trường đó (KHÔNG ghi 0).
+bool guiSoDo(float H, float H5, float V, float R, float S) {
+  if (isnan(H) || !mqtt.connected()) return false;
   JsonDocument doc;
-  if (deserializeJson(doc, payload, length)) return;      // không phải JSON → bỏ
-  int v = doc["version"] | 0;
-  if (v <= modelVersion) return;                           // bản cũ hoặc trùng → bỏ
-  modelVersion = v;
-  a0 = doc["intercept"]; aH = doc["coef"]["H"]; aV = doc["coef"]["V"];
-  aR = doc["coef"]["R"]; aS = doc["coef"]["S"];
-  store.putInt("ver", v); store.putFloat("a0", a0); store.putFloat("aH", aH);
-  store.putFloat("aV", aV); store.putFloat("aR", aR); store.putFloat("aS", aS);
-  baoCongThucMoi = true;
-}
-
-void setup() {
-  store.begin("congthuc");
-  modelVersion = store.getInt("ver", 0);                   // bật lại máy vẫn còn công thức cũ
-  a0 = store.getFloat("a0"); aH = store.getFloat("aH"); aV = store.getFloat("aV");
-  aR = store.getFloat("aR"); aS = store.getFloat("aS");
-  baoCongThucMoi = modelVersion > 0;                       // tin đầu tiên sau khi bật: báo công thức đang dùng
-
-  WiFi.begin("TEN_WIFI", "MAT_KHAU_WIFI");
-  while (WiFi.status() != WL_CONNECTED) delay(500);
-  configTime(7 * 3600, 0, "pool.ntp.org");                 // giờ Việt Nam qua mạng
-  mqtt.setServer("flood.agentwf.xyz", 1883);
-  mqtt.setBufferSize(512);
-  mqtt.setCallback(nhanCongThuc);
-}
-
-void guiSoDo() {
+  doc["id"] = MA_TRAM;
   struct tm t;
-  if (!getLocalTime(&t)) return;                           // chưa có giờ → đợi lần sau
-  float H = docMucNuocMm(), R = docLuongMuaMm(), S = docTrieuM();
-
-  JsonDocument doc;
-  doc["id"] = ID;
-  char ngay[11], gio[9];
-  strftime(ngay, sizeof ngay, "%Y-%m-%d", &t); strftime(gio, sizeof gio, "%H:%M:%S", &t);
-  doc["date"] = ngay; doc["time"] = gio;
-  doc["water_level_mm"] = H; doc["rain_mm"] = R; doc["tide_m"] = S;
-
-  if (!isnan(mucNuoc5PhutTruoc)) {
-    float V = (H - mucNuoc5PhutTruoc) / 5.0;               // mm/phút
-    doc["rise_rate_mm_min"] = V;
-    if (modelVersion > 0) {
-      float duBao = a0 + aH * H + aV * V + aR * R + aS * S;
-      doc["predicted_water_level_mm"] = duBao < 0 ? 0 : duBao;
-      doc["model_version"] = modelVersion;
-      if (baoCongThucMoi) {
-        JsonObject m = doc["model"].to<JsonObject>();
-        m["version"] = modelVersion; m["horizon_min"] = 5; m["intercept"] = a0;
-        m["coef"]["H"] = aH; m["coef"]["V"] = aV; m["coef"]["R"] = aR; m["coef"]["S"] = aS;
-        baoCongThucMoi = false;
-      }
-    }
+  if (getLocalTime(&t, 100) && t.tm_year + 1900 >= 2024) {      // giờ VN: configTime(7 * 3600, ...) trong setup()
+    char ngay[11], gio[9];
+    strftime(ngay, sizeof ngay, "%Y-%m-%d", &t); strftime(gio, sizeof gio, "%H:%M:%S", &t);
+    doc["date"] = ngay; doc["time"] = gio;
   }
-  mucNuoc5PhutTruoc = H;
-
-  char json[512];
-  serializeJson(doc, json);
-  mqtt.publish(TOPIC_DATA, json);
-}
-
-void loop() {
-  if (!mqtt.connected()) {
-    if (mqtt.connect("station-A01", "smartflood-gateway", "MAT_KHAU_MQTT")) {
-      mqtt.subscribe(TOPIC_MODEL, 1);                      // nghe hệ số mới (tin retained tới ngay)
-    } else { delay(5000); return; }
-  }
-  mqtt.loop();                                             // PHẢI gọi thường xuyên để nhận được hệ số
-
-  static unsigned long lanGuiTruoc = 0;
-  if (lanGuiTruoc == 0 || millis() - lanGuiTruoc >= 5UL * 60 * 1000) {   // 5 phút 1 lần
-    lanGuiTruoc = millis();
-    guiSoDo();
-  }
+  doc["water_level_mm"] = roundf(H < 0 ? 0 : H);
+  if (!isnan(H5)) doc["predicted_water_level_mm"] = roundf(H5 < 0 ? 0 : H5);
+  if (!isnan(V))  doc["drain_mm_5min"] = roundf(V * 10) / 10;
+  if (!isnan(R))  doc["rain_mm"] = roundf(R * 10) / 10;
+  if (!isnan(S))  doc["tide_m"] = roundf(S * 100) / 100;
+  if (!isnan(H5) && phienBan > 0) doc["model_version"] = phienBan;
+  char json[384];
+  size_t n = serializeJson(doc, json, sizeof json);
+  return mqtt.publish(topicData, (const uint8_t*)json, n, false);
 }
 ```
 
-> Trạm dùng **ngủ sâu (deep sleep)** để tiết kiệm pin thì `mucNuoc5PhutTruoc` phải lưu vào `RTC_DATA_ATTR`, và sau mỗi lần thức dậy phải gọi `mqtt.loop()` vài giây để kịp nhận tin hệ số.
+Nhớ trong `setup()`: `mqtt.setBufferSize(512)`, `mqtt.setKeepAlive(120)`, `mqtt.setCallback(nhanCongThuc)`, và **mỗi trạm 1 Client ID riêng** (`station-A01`).
 
 ## 8. Thử trước khi nối trạm thật
 
-**Cách 1: trang admin, không cần MQTT.** Mở `https://flood.agentwf.xyz/admin`, nhập khóa admin, tab **Gửi thử · Thêm node**: ô nhập có sẵn 1 gói tin mẫu bản 3.0, sửa số rồi bấm **Gửi**. Trang báo **✓ Đã lưu** hoặc **✗ Bị từ chối: <lý do>**.
+**Cách 1: trang admin, không cần MQTT.** Mở `https://flood.agentwf.xyz/admin`, nhập khóa admin, tab **Gửi thử · Thêm node**: ô nhập có sẵn 1 gói tin mẫu bản 3.1, sửa số rồi bấm **Gửi**. Trang báo **✓ Đã lưu** hoặc **✗ Bị từ chối: <lý do>**.
 
 **Cách 2: dòng lệnh, không cần MQTT:**
 
 ```bash
 curl -X POST https://flood.agentwf.xyz/api/v1/admin/messages \
   -H "Content-Type: application/json" -H "x-admin-key: <KHÓA_ADMIN>" \
-  -d '{"message": {"id":"ND-THU-01","time":"14:05:30","water_level_mm":125,"rise_rate_mm_min":2.4,"rain_mm":12.5,"tide_m":1.35}}'
+  -d '{"message": {"id":"ND-THU-01","time":"14:05:30","water_level_mm":125,"predicted_water_level_mm":131,"drain_mm_5min":6.5,"rain_mm":2.5,"tide_m":1.35}}'
 ```
 
 **Cách 3: qua MQTT thật** (máy có cài `mosquitto-clients`):
@@ -339,7 +276,7 @@ curl -X POST https://flood.agentwf.xyz/api/v1/admin/messages \
 # Gửi 1 số đo
 mosquitto_pub -h flood.agentwf.xyz -p 1883 -u smartflood-gateway -P '<mật khẩu>' -q 1 \
   -t smartflood/nodes/ND-THU-01/data \
-  -m '{"water_level_mm":125,"rise_rate_mm_min":2.4,"rain_mm":12.5,"tide_m":1.35}'
+  -m '{"water_level_mm":125,"predicted_water_level_mm":131,"drain_mm_5min":6.5,"rain_mm":2.5,"tide_m":1.35}'
 
 # Xem hệ số máy chủ gửi xuống cho 1 trạm
 mosquitto_sub -h flood.agentwf.xyz -p 1883 -u smartflood-gateway -P '<mật khẩu>' -q 1 -v -t smartflood/nodes/A01/model
@@ -354,7 +291,8 @@ Lý do bị từ chối hay gặp (xem tab **Tin nhắn lỗi**):
 | Lý do | Sửa |
 |---|---|
 | `Không phải JSON hợp lệ` | Thiếu dấu ngoặc / dấu phẩy, hoặc dùng dấu `'` thay cho `"` |
-| `tide_m: thiếu thủy triều (bắt buộc)` | Gửi đủ: độ ngập, mưa, triều |
+| `drain_mm_5min: thiếu tốc độ thoát nước V` | Thêm `drain_mm_5min` (mm/5 phút) — bắt buộc từ bản 3.1 |
+| `tide_m: thiếu thủy triều (bắt buộc)` | Gửi đủ: độ ngập, thoát nước, mưa, triều |
 | `rain_mm: thiếu thông tin mưa` | Thêm `rain_mm` |
 | `water_level_mm: phải là số` | Gửi chữ như `"abc"` hoặc `"N/A"`. Không đo được thì bỏ trường / ghi `null` |
 | `model_version 3 khác model.version 2` | Gửi `model` kèm thì 2 số phiên bản phải giống nhau |
@@ -367,32 +305,32 @@ Lý do bị từ chối hay gặp (xem tab **Tin nhắn lỗi**):
 
 - `.json`: mảng `[ {...}, {...} ]` (xem `examples/import-sample.json`)
 - `.jsonl`: mỗi dòng 1 object JSON
-- `.csv`: dòng đầu là tên cột, vd `id,date,time,water_level_mm,rise_rate_mm_min,rain_mm,tide_m` (xem `examples/import-sample.csv`). Ô trống = không có dữ liệu, không phải 0. Lưu từ Excel dạng **CSV UTF-8**.
+- `.csv`: dòng đầu là tên cột, vd `id,date,time,water_level_mm,predicted_water_level_mm,drain_mm_5min,rain_mm,tide_m` (xem `examples/import-sample.csv`). Ô trống = không có dữ liệu, không phải 0. Lưu từ Excel dạng **CSV UTF-8**.
 
 ```bash
 npm run import -- du-lieu.csv --api https://flood.agentwf.xyz --key <KHÓA_ADMIN>
 ```
 
-Nhập lại cùng file **không bị trùng**. Dữ liệu cũ nhập vào **cũng được dùng để học công thức** (nếu nằm trong 30 ngày gần nhất).
+Nhập lại cùng file **không bị trùng**. Nhập dữ liệu cũ thì **không bắt buộc** `drain_mm_5min`, nhưng chỉ dòng nào **có** V mới được dùng để học công thức (nếu nằm trong 30 ngày gần nhất).
 
 ## 10. Câu hỏi còn mở (cần bên IoT trả lời)
 
 | # | Câu hỏi | Vì sao cần |
 |---|---|---|
-| 1 | **`water_level_mm`** là độ sâu nước trên mặt đường (đường khô = 0) hay cao độ so với 1 mốc nào đó? | Máy chủ lấy số này so ngưỡng 10 / 25 / 40 cm, và chỉ học lúc số này > 0 |
-| 2 | **`rain_mm`** về 0 khi nào: mưa trong 5 phút vừa qua, đầu ngày, hay lúc bật trạm? | Nếu cộng dồn mãi không về 0 thì hệ số $a_3$ của mưa học ra không có ý nghĩa |
-| 3 | **`tide_m`** so với mốc nào (hệ cao độ quốc gia, số 0 hải đồ…), lấy từ nguồn nào? | Để ghi chú đúng trên app và trong báo cáo |
-| 4 | **Tọa độ** (vĩ độ, kinh độ) và địa chỉ của A01, A02? | Để hiện trạm trên bản đồ |
-| 5 | Chỗ đặt trạm có **Wi-Fi 2.4 GHz ổn định** không? Mất Wi-Fi thì trạm có lưu tạm số đo để gửi bù không? | Gửi bù được nếu có `date` (mục 4) |
-| 6 | Xác nhận **tên trường** bản 3.0 như mục 3.1 | Sai 1 chữ là máy chủ báo thiếu trường |
+| 1 | **V** đo/tính thế nào (lưu lượng kế ở cống, hay suy ra từ H và R)? | Nếu V tính ra từ chính H và R thì V không thêm thông tin gì cho công thức |
+| 2 | **`tide_m`** so với mốc nào (hệ cao độ quốc gia, số 0 hải đồ…), lấy từ nguồn nào? | Để ghi chú đúng trên app và trong báo cáo |
+| 3 | **Tọa độ** (vĩ độ, kinh độ) và địa chỉ của A01, A02? | Để hiện trạm trên bản đồ |
+| 4 | Chỗ đặt trạm có **Wi-Fi 2.4 GHz ổn định** không? Mất Wi-Fi thì trạm có lưu tạm số đo để gửi bù không? | Gửi bù được nếu có `date` (mục 4) |
+
+Đã chốt (29/10): `water_level_mm` = độ sâu nước trên mặt đường; `rain_mm` = mưa trong 5 phút; V = thoát nước mm/5 phút.
 
 ## 11. Checklist cho bên IoT
 
 - [ ] Mỗi trạm có `id` cố định, không trùng (`A01`, `A02`…) và **Client ID MQTT riêng**
-- [ ] Gửi 5 phút 1 lần: `water_level_mm`, `rain_mm`, `tide_m`, `rise_rate_mm_min` đúng đơn vị bảng 3.1
+- [ ] Gửi 5 phút 1 lần: `water_level_mm`, `predicted_water_level_mm`, `drain_mm_5min`, `rain_mm`, `tide_m` đúng đơn vị bảng 3.1
+- [ ] `water_level_mm` là **độ sâu ngập** (đường khô = 0), không phải khoảng cách cảm biến
 - [ ] Không đo được thì bỏ trường / `null`, **không ghi 0**
-- [ ] `time` + `date` lấy từ NTP, giờ Việt Nam
+- [ ] `time` + `date` lấy từ NTP, **giờ Việt Nam**
 - [ ] Subscribe `smartflood/nodes/<id>/model`, chỉ nhận bản có `version` lớn hơn, lưu hệ số vào flash
-- [ ] Đã có công thức thì gửi `predicted_water_level_mm` + `model_version`; vừa nhận công thức mới thì gửi kèm `model` 1 lần
 - [ ] Đã gửi thử và thấy **✓ Đã lưu** ở trang admin
 - [ ] Đã trả lời các câu hỏi mục 10

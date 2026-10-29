@@ -8,7 +8,7 @@ export interface SampleSelection {
   pairsTotal: number;
   /** Số cặp bỏ vì đường khô cả lúc t lẫn lúc t+5 phút. */
   dryPairs: number;
-  /** Số cặp bỏ vì thiếu lượng mưa / tốc độ dâng. */
+  /** Số cặp bỏ vì thiếu lượng mưa / tốc độ thoát nước V (gói tin cũ trước bản 3.1 không có V). */
   incompletePairs: number;
 }
 
@@ -17,7 +17,7 @@ export interface SampleSelection {
  *   - Bỏ cặp mà độ ngập lúc t VÀ lúc t+5 phút đều ≤ 0 (đường khô, không dạy được gì về ngập —
  *     để lại thì hàng trăm mẫu khô mỗi ngày sẽ kéo hệ số triều, mưa về gần 0).
  *   - GIỮ cặp lúc t còn khô nhưng t+5 phút đã có nước: đó chính là lúc nước BẮT ĐẦU lên, lúc cần dự báo nhất.
- *   - Bỏ cặp thiếu lượng mưa hoặc không tính được tốc độ dâng.
+ *   - Bỏ cặp thiếu lượng mưa hoặc thiếu V (tốc độ thoát nước, chỉ gói tin 3.1 mới có).
  */
 export function toTrainingSamples(rows: TrainingPairRow[]): SampleSelection {
   const samples: TrainingSample[] = [];
@@ -27,7 +27,7 @@ export function toTrainingSamples(rows: TrainingPairRow[]): SampleSelection {
   for (const row of rows) {
     const h = Number(row.h_mm);
     const target = Number(row.target_mm);
-    const v = row.v_mm_min === null ? NaN : Number(row.v_mm_min);
+    const v = row.v_drain === null ? NaN : Number(row.v_drain);
     const r = row.rain_mm === null ? NaN : Number(row.rain_mm);
     const s = Number(row.s_m);
     if (![h, v, r, s, target].every(Number.isFinite)) {

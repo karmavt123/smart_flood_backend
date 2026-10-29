@@ -8,11 +8,11 @@ const API = '/api/v1/admin';
 const KEY_STORAGE = 'smartflood-admin-key';
 const LEVEL_TEXT = { normal: 'An toàn', warning: 'Cảnh báo', danger: 'Nguy hiểm', critical: 'Rất nguy hiểm', unknown: 'Chưa có' };
 const CONN_TEXT = { online: 'Đang hoạt động', slow: 'Chậm dữ liệu', offline: 'Mất kết nối', nodata: 'Chưa có dữ liệu' };
-// Ý nghĩa các biến trong công thức. Bản 3.0: hệ số dùng đúng đơn vị trong gói tin của trạm (mm, mm/phút, mm, m).
+// Ý nghĩa các biến trong công thức. Bản 3.1: hệ số dùng đúng đơn vị trong gói tin của trạm (mm, mm/5 phút, mm, m).
 const VARIABLE_TEXT = {
   H: 'độ ngập hiện tại (mm)',
-  V: 'tốc độ dâng (mm/phút)',
-  R: 'lượng mưa (mm)',
+  V: 'tốc độ thoát nước (mm/5 phút)',
+  R: 'lượng mưa trong 5 phút (mm)',
   S: 'thủy triều (m)',
   T: 'nhiệt độ (công thức cũ)',
   RH: 'độ ẩm (công thức cũ)',
@@ -74,6 +74,8 @@ const levelBadge = (level) => el('span', { className: `level ${level}` }, LEVEL_
 const has = (value) => value !== null && value !== undefined;
 /** Thủy triều: DB lưu cm, hiển thị theo mét giống gói tin bên IoT. */
 const riseText = (v) => (has(v) ? `${v > 0 ? '+' : ''}${Math.round(v * 10) / 10} mm/ph` : '—');
+/** Cột "Thoát nước" bảng trạm: V của gói tin 3.1; trạm kiểu cũ chỉ có tốc độ dâng thì ghi "dâng ...". */
+const drainText = (r) => (has(r.drainMm5min) ? num(r.drainMm5min, ' mm/5′') : has(r.riseRateMmMin) ? `dâng ${riseText(r.riseRateMmMin)}` : '—');
 const tideText = (cm) => (has(cm) ? `${(cm / 100).toFixed(2)} m` : '—');
 /** Mưa: lượng mưa (mm) của gói tin mới; gói tin kiểu cũ thì là tổng mưa 60 phút. */
 const rainText = (r) => (has(r.rainMm) ? num(r.rainMm, ' mm') : has(r.rainMm1h) ? `${num(r.rainMm1h, ' mm')} /1h` : '—');
@@ -123,7 +125,7 @@ async function loadNodes() {
 }
 
 function renderNodesTable() {
-  const head = el('tr', {}, ['Mã node', 'Tên', 'Vị trí', 'Kết nối', 'Lần cuối', 'Ngập', 'Tốc độ dâng', 'Mức', 'Dự đoán', 'Lượng mưa', 'Cường độ mưa', 'Triều', 'Nhiệt độ', 'Công thức', ''].map((t) => el('th', {}, t)));
+  const head = el('tr', {}, ['Mã node', 'Tên', 'Vị trí', 'Kết nối', 'Lần cuối', 'Ngập', 'Thoát nước', 'Mức', 'Dự đoán', 'Lượng mưa', 'Cường độ mưa', 'Triều', 'Nhiệt độ', 'Công thức', ''].map((t) => el('th', {}, t)));
   const rows = nodes.map((n) => {
     const r = n.latest;
     const isTest = r && r.extra && r.extra.is_test === true;
@@ -136,7 +138,7 @@ function renderNodesTable() {
       el('td', { className: `conn ${n.connectionState}` }, CONN_TEXT[n.connectionState]),
       el('td', {}, timeAgo(n.lastSeenAt)),
       el('td', {}, r ? num(r.floodDepthCm, ' cm') : '—'),
-      el('td', {}, r ? riseText(r.riseRateMmMin) : '—'),
+      el('td', {}, r ? drainText(r) : '—'),
       el('td', {}, levelBadge(n.floodLevel)),
       el('td', {}, r && r.predictedDepthCm !== null ? `${num(r.predictedDepthCm, ' cm')} (+${r.forecastMinutes}′)` : '—'),
       el('td', {}, r ? rainText(r) : '—'),
@@ -305,7 +307,8 @@ const renderExtra = (r) => (Object.keys(r.extra || {}).length ? JSON.stringify(r
 const READING_COLUMNS = [
   ['Thời điểm đo', (r) => [clock(r.measuredAt), r.timeSource === 'server' ? el('span', { className: 'tag' }, 'giờ máy chủ') : null], null],
   ['Ngập', (r) => num(r.floodDepthCm, ' cm'), null],
-  ['Tốc độ dâng', (r) => riseText(r.riseRateMmMin), (r) => r.riseRateMmMin],
+  ['Thoát nước', (r) => num(r.drainMm5min, ' mm/5′'), (r) => r.drainMm5min],
+  ['Tốc độ dâng (kiểu cũ)', (r) => riseText(r.riseRateMmMin), (r) => r.riseRateMmMin],
   ['Dự đoán', (r) => num(r.predictedDepthCm, ' cm'), (r) => r.predictedDepthCm],
   ['Lượng mưa', (r) => num(r.rainMm, ' mm'), (r) => r.rainMm],
   ['Cường độ mưa', (r) => num(r.rainRateMmH, ' mm/h'), (r) => r.rainRateMmH],
@@ -364,13 +367,14 @@ async function loadErrors() {
 }
 
 // ---------- gửi thử ----------
-// Đúng kiểu gói tin bản 3.0 trạm gửi (xem IOT_DATA_FORMAT.md). Mã ND-THU-01 để khỏi lẫn dữ liệu thử vào trạm thật.
+// Đúng kiểu gói tin bản 3.1 trạm gửi (xem IOT_DATA_FORMAT.md). Mã ND-THU-01 để khỏi lẫn dữ liệu thử vào trạm thật.
 const EXAMPLE = {
   id: 'ND-THU-01',
   time: vietnamClockNow(),
   water_level_mm: 125,
-  rise_rate_mm_min: 2.4,
-  rain_mm: 12.5,
+  predicted_water_level_mm: 131,
+  drain_mm_5min: 6.5,
+  rain_mm: 2.5,
   tide_m: 1.35,
 };
 const testBox = document.getElementById('test-message');

@@ -111,6 +111,7 @@ export function startEraBridge(options: EraBridgeOptions): () => void {
         topic: `e-ra/${options.nodeId}`,
         nodeIdFromTopic: options.nodeId,
         payload: { id: options.nodeId, ...fields, via: 'e-ra' },
+        requireDrain: false, // E-Ra chưa có trường V; khai báo drain_mm_5min trong ERA_FIELD_MAP thì vẫn lưu
       });
       if (!result.ok) {
         console.warn(`[era] Từ chối số đo của ${options.nodeId}: ${result.reason}`);
@@ -135,6 +136,7 @@ function describeFields(fields: EraReadingFields): string {
   const parts: string[] = [];
   if (fields.water_level_mm !== undefined) parts.push(`ngập ${fields.water_level_mm} mm`);
   if (fields.rise_rate_mm_min !== undefined) parts.push(`dâng ${fields.rise_rate_mm_min} mm/phút`);
+  if (fields.drain_mm_5min !== undefined) parts.push(`thoát ${fields.drain_mm_5min} mm/5 phút`);
   if (fields.rain_mm !== undefined) parts.push(`mưa ${fields.rain_mm} mm`);
   if (fields.tide_m !== undefined) parts.push(`triều ${fields.tide_m} m`);
   return parts.join(', ');

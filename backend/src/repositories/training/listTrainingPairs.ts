@@ -5,9 +5,9 @@ export interface TrainingPairRow {
   measured_at: Date | string;
   /** Độ ngập lúc t (mm). */
   h_mm: number;
-  /** Tốc độ dâng lúc t (mm/phút): trạm gửi thì dùng số của trạm, không gửi thì tự tính từ lần đo 5 phút trước. */
-  v_mm_min: number | null;
-  /** Lượng mưa lúc t (mm). */
+  /** V lúc t = tốc độ thoát nước trạm gửi (drain_mm_5min, mm/5 phút). Gói tin cũ không có V → null → cặp bị bỏ. */
+  v_drain: number | null;
+  /** R lúc t = lượng mưa trong 5 phút (mm). */
   rain_mm: number | null;
   /** Thủy triều lúc t (m). */
   s_m: number;
@@ -33,11 +33,7 @@ export async function listTrainingPairs(
   return db().query<TrainingPairRow>(
     `SELECT a.measured_at,
             a.flood_depth_cm * 10 AS h_mm,
-            COALESCE(
-              a.rise_rate_mm_min,
-              (a.flood_depth_cm - p.flood_depth_cm) * 10
-                / NULLIF(EXTRACT(EPOCH FROM (a.measured_at - p.measured_at)) / 60, 0)
-            ) AS v_mm_min,
+            a.drain_mm_5min AS v_drain,
             a.rain_mm,
             a.tide_cm / 100.0 AS s_m,
             f.flood_depth_cm * 10 AS target_mm
@@ -50,14 +46,6 @@ export async function listTrainingPairs(
        ORDER BY ABS(EXTRACT(EPOCH FROM (b.measured_at - a.measured_at)) - $4::double precision)
        LIMIT 1
      ) f ON TRUE
-     LEFT JOIN LATERAL (
-       SELECT c.flood_depth_cm, c.measured_at FROM readings c
-       WHERE c.node_id = a.node_id AND c.source <> 'admin-test'
-         AND c.measured_at BETWEEN a.measured_at - make_interval(secs => $4::double precision + $5::double precision)
-                               AND a.measured_at - make_interval(secs => $4::double precision - $5::double precision)
-       ORDER BY ABS(EXTRACT(EPOCH FROM (a.measured_at - c.measured_at)) - $4::double precision)
-       LIMIT 1
-     ) p ON TRUE
      WHERE a.node_id = $1 AND a.measured_at >= $2 AND a.measured_at <= $3 AND a.source <> 'admin-test'
      ORDER BY a.measured_at ASC`,
     [nodeId, since, until, horizonSec, toleranceSec],

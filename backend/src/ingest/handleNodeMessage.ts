@@ -22,6 +22,8 @@ interface IncomingMessage {
   nodeIdFromTopic: string | null;
   /** Nội dung tin nhắn: chuỗi JSON (MQTT) hoặc object đã đọc sẵn (import). */
   payload: string | unknown;
+  /** Bắt buộc có V (drain_mm_5min)? Mặc định: có, trừ khi nhập dữ liệu cũ. Cầu nối E-Ra tắt (E-Ra chưa có V). */
+  requireDrain?: boolean;
 }
 
 /**
@@ -54,6 +56,7 @@ export async function handleNodeMessage(incoming: IncomingMessage): Promise<Inge
       nodeIdFromTopic: incoming.nodeIdFromTopic,
       receivedAt,
       mustHaveDeviceTime: !isLive,
+      requireDrain: incoming.requireDrain ?? isLive,
     });
 
     await ensureNodeExists(message.nodeId);

@@ -14,7 +14,15 @@ interface ParseOptions {
   receivedAt: Date;
   /** true khi nhập dữ liệu cũ: bắt buộc có ngày + giờ đo. */
   mustHaveDeviceTime: boolean;
+  /**
+   * true = bắt buộc có V (drain_mm_5min) như gói tin 3.1. Gói tin kiểu CŨ (có rise_rate_mm_min,
+   * flood_depth_cm, rain_rate_mm_s/h, rain_mm_1h, tide_cm, node_id) thì vẫn nhận dù không có V.
+   */
+  requireDrain: boolean;
 }
+
+/** Có 1 trong các trường này = gói tin kiểu cũ (trước bản 3.1) → không bắt có V. */
+const LEGACY_KEYS = ['rise_rate_mm_min', 'flood_depth_cm', 'rain_rate_mm_s', 'rain_rate_mm_h', 'rain_mm_1h', 'tide_cm', 'node_id', 'measured_at'] as const;
 
 /** 1 cách gửi 1 đại lượng: tên trường, giá trị, nhân bao nhiêu để ra đơn vị lưu trong DB. */
 type FieldOption = [key: string, value: number | null | undefined, factor: number];
@@ -27,7 +35,8 @@ type FieldOption = [key: string, value: number | null | undefined, factor: numbe
  *   cường độ mưa:  rain_rate_mm_s × 3600 → mm/giờ (hoặc rain_rate_mm_h)
  *   lượng mưa:     rain_mm giữ nguyên (mm)
  *   dự báo:        predicted_water_level_mm ÷ 10 → cm, luôn là 5 phút tới (bản 3.0)
- *   tốc độ dâng:   rise_rate_mm_min giữ nguyên (mm/phút) — máy chủ học công thức theo đúng đơn vị trạm dùng
+ *   thoát nước V:  drain_mm_5min giữ nguyên (mm/5 phút) — bắt buộc với gói tin 3.1
+ *   tốc độ dâng:   rise_rate_mm_min giữ nguyên (mm/phút) — chỉ gói tin cũ (bản 3.0)
  * Sai ở đâu thì ném IngestRejection kèm lý do tiếng Việt, ví dụ "tide_m: thiếu thủy triều (bắt buộc)".
  */
 export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedNodeMessage {
@@ -85,6 +94,16 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
     issues.push('rain_mm: thiếu thông tin mưa — gửi ít nhất 1 trong rain_mm, rain_rate_mm_s (bắt buộc)');
   }
 
+  // V (tốc độ thoát nước): bắt buộc với gói tin 3.1; gói tin kiểu cũ thì bỏ qua.
+  const drainMm5min = message.drain_mm_5min ?? null;
+  const isLegacyPacket = LEGACY_KEYS.some((key) => {
+    const value = (message as Record<string, unknown>)[key];
+    return value !== null && value !== undefined;
+  });
+  if (options.requireDrain && drainMm5min === null && !isLegacyPacket) {
+    issues.push('drain_mm_5min: thiếu tốc độ thoát nước V, mm/5 phút (bắt buộc)');
+  }
+
   // Dự báo: bản 3.0 gửi predicted_water_level_mm (luôn là 5 phút tới); kiểu cũ gửi object prediction.
   const hasPredictedMm = message.predicted_water_level_mm !== null && message.predicted_water_level_mm !== undefined;
   if (hasPredictedMm && message.prediction) {
@@ -127,6 +146,7 @@ export function parseNodeMessage(input: unknown, options: ParseOptions): ParsedN
     timeSource: time.timeSource,
     floodDepthCm: floodDepthCm!,
     riseRateMmMin: message.rise_rate_mm_min ?? null,
+    drainMm5min,
     modelVersion,
     rainMm,
     rainRateMmH: rainRateMmH ?? null,

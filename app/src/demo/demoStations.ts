@@ -88,8 +88,10 @@ export function buildDemoStation(seed: DemoStationSeed, now = Date.now(), depthO
             receivedAt: measuredAt,
             timeSource: 'device',
             floodDepthCm: depth,
-            rainMm: seed.rainTotal,
-            rainRateMmH: seed.rainRate,
+            // Gói tin 3.1: mưa trong 5 phút (≈ cường độ mm/h ÷ 12), thoát nước V, dự báo sau 5 phút.
+            drainMm5min: Math.round(depth * 0.4 * 10) / 10,
+            rainMm: Math.round((seed.rainRate / 12) * 10) / 10,
+            rainRateMmH: null,
             rainMm1h: null,
             tideCm: seed.tide,
             temperatureC: 28.4,
@@ -97,8 +99,10 @@ export function buildDemoStation(seed: DemoStationSeed, now = Date.now(), depthO
             lightLux: null,
             batteryPct: null,
             rssiDbm: null,
-            predictedDepthCm: null,
-            forecastMinutes: null,
+            // Trạm có mưa → nước còn dâng; hết mưa → rút. Trạm "mất kết nối" vẫn có số nhưng app sẽ ghi "Chưa có thông tin".
+            // demo_q7_01 giả làm trạm chưa có công thức → không gửi dự báo → ô "Sau 5 phút" ghi "Chưa có thông tin".
+            predictedDepthCm: seed.nodeId === 'demo_q7_01' ? null : seed.rainRate > 0 ? Math.round((depth + seed.rainRate / 20) * 10) / 10 : Math.max(0, depth - 1.5),
+            forecastMinutes: 5,
             modelVersion: null,
             source: 'mqtt',
             extra: {},

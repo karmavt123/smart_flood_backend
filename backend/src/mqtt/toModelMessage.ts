@@ -4,9 +4,9 @@ import type { NodeModelRecord } from '../types/NodeModelRecord.js';
 /**
  * NỘI DUNG TIN NHẮN GỬI HỆ SỐ XUỐNG TRẠM (topic smartflood/nodes/<id>/model), ví dụ:
  *   { "version": 2, "horizon_min": 5, "intercept": 1.2,
- *     "coef": { "H": 0.97, "V": 4.9, "R": 0.03, "S": 2.1 },
+ *     "coef": { "H": 0.97, "V": -0.4, "R": 0.6, "S": 2.1 },
  *     "trained_at": "2026-10-29T17:30:00.000Z", "samples": 146, "mae_mm": 3.4 }
- * Trạm tính: Ĥ(mm) = intercept + H·water_level_mm + V·rise_rate_mm_min + R·rain_mm + S·tide_m.
+ * Trạm tính: Ĥ(mm) = intercept + H·water_level_mm + V·drain_mm_5min + R·rain_mm + S·tide_m.
  */
 export function toModelMessage(model: NodeModelRecord) {
   return {

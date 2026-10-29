@@ -13,10 +13,10 @@ export async function insertReading(
   const rows = await db().query<{ inserted: number }>(
     `INSERT INTO readings (
        node_id, measured_at, received_at, time_source,
-       flood_depth_cm, rise_rate_mm_min, rain_mm, rain_rate_mm_h, rain_mm_1h, tide_cm,
+       flood_depth_cm, rise_rate_mm_min, drain_mm_5min, rain_mm, rain_rate_mm_h, rain_mm_1h, tide_cm,
        temperature_c, humidity_pct, light_lux, battery_pct, rssi_dbm,
        predicted_depth_cm, forecast_minutes, model_version, source, extra
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20::jsonb)
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21::jsonb)
      ON CONFLICT (node_id, measured_at) DO NOTHING
      RETURNING 1 AS inserted`,
     [
@@ -26,6 +26,7 @@ export async function insertReading(
       message.timeSource,
       message.floodDepthCm,
       message.riseRateMmMin,
+      message.drainMm5min,
       message.rainMm,
       message.rainRateMmH,
       message.rainMm1h,

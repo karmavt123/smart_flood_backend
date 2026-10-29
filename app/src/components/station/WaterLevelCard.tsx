@@ -8,11 +8,12 @@ import { isStationDataFresh } from '@/utils/isStationDataFresh';
 import { Card } from '../common/Card';
 import { ConnectionBadge } from './ConnectionBadge';
 import { FloodLevelBadge } from './FloodLevelBadge';
+import { ForecastBox } from './ForecastBox';
 import { LastUpdateText } from './LastUpdateText';
 
 /**
  * THẺ ĐỘ NGẬP của một trạm — thông tin quan trọng nhất nên chữ to nhất (yêu cầu mục 2.2):
- * tên trạm, độ sâu ngập trên mặt đường, 3 ngưỡng, mức ngập, kết nối, thời điểm cập nhật.
+ * tên trạm, độ sâu ngập trên mặt đường + ô "Sau 5 phút" (dự báo trạm gửi), 3 ngưỡng, mức ngập, kết nối, thời điểm cập nhật.
  */
 export function WaterLevelCard({ station }: { station: Station }) {
   const fresh = isStationDataFresh(station);
@@ -24,10 +25,20 @@ export function WaterLevelCard({ station }: { station: Station }) {
         Mã trạm: {station.nodeId}
         {station.address ? ` · ${station.address}` : ''}
       </Text>
-      <Text style={styles.caption}>Độ sâu ngập trên mặt đường</Text>
-      <Text style={[styles.level, !fresh && styles.levelStale, station.waterLevelCm === null && styles.levelMissing]}>
-        {formatSensorValue(station.waterLevelCm, 'cm')}
-      </Text>
+      <View style={styles.levelRow}>
+        <View style={styles.levelNow}>
+          <Text style={styles.caption}>Độ sâu ngập hiện tại</Text>
+          {station.waterLevelCm === null ? (
+            <Text style={[styles.level, styles.levelMissing]}>{formatSensorValue(null, 'cm')}</Text>
+          ) : (
+            <Text style={[styles.level, !fresh && styles.levelStale]} numberOfLines={1} adjustsFontSizeToFit>
+              {station.waterLevelCm.toFixed(1)}
+              <Text style={styles.unit}> cm</Text>
+            </Text>
+          )}
+        </View>
+        <ForecastBox station={station} />
+      </View>
       <Text style={styles.muted}>
         Ngưỡng: cảnh báo {t.warningCm} cm · nguy hiểm {t.dangerCm} cm · rất nguy hiểm {t.criticalCm} cm
       </Text>
@@ -46,10 +57,13 @@ export function WaterLevelCard({ station }: { station: Station }) {
 const styles = StyleSheet.create({
   name: { fontSize: 19, fontWeight: '800', color: appColors.text },
   muted: { color: appColors.textMuted, marginTop: 2 },
-  caption: { color: appColors.textMuted, marginTop: 10, fontSize: 12, fontWeight: '700' },
+  levelRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10 },
+  levelNow: { flex: 1 },
+  caption: { color: appColors.textMuted, fontSize: 12, fontWeight: '700' },
   level: { fontSize: 46, fontWeight: '900', color: appColors.text },
+  unit: { fontSize: 22, fontWeight: '800' },
   levelStale: { color: '#94A3B8' },
-  levelMissing: { fontSize: 26, marginVertical: 8 },
+  levelMissing: { fontSize: 20, marginVertical: 8 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   note: { color: appColors.textMuted, fontSize: 12, marginTop: 6 },
 });

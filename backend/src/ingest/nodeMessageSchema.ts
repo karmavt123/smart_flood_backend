@@ -10,6 +10,8 @@ function numericStringToNumber(value: unknown) {
 const requiredNumber = (min: number, max: number) => z.preprocess(numericStringToNumber, z.number().min(min).max(max));
 /** Số không bắt buộc: thiếu hoặc null đều được (lưu NULL, không phải 0). */
 const optionalNumber = (min: number, max: number) => requiredNumber(min, max).nullish();
+/** Số bất kỳ (không giới hạn khoảng), thiếu hoặc null đều được. */
+const optionalAnyNumber = z.preprocess(numericStringToNumber, z.number().finite()).nullish();
 const optionalInteger = (min: number, max: number) =>
   z.preprocess(numericStringToNumber, z.number().int().min(min).max(max)).nullish();
 
@@ -24,6 +26,8 @@ const nodeIdValue = z
  * KHUÔN DỮ LIỆU 1 TIN NHẮN node gửi lên (đặc tả đầy đủ cho bên IoT: IOT_DATA_FORMAT.md).
  *
  * Nhận các KIỂU TÊN TRƯỜNG:
+ *   - Bản 3.1 (từ 29/10/2026, bản đang dùng): id, date, time, water_level_mm, predicted_water_level_mm,
+ *       drain_mm_5min (V, BẮT BUỘC), rain_mm (R, mưa trong 5 phút), tide_m (S), model_version
  *   - Bản 3.0 (từ 28/10/2026, trạm gửi thẳng qua Wi-Fi, 5 phút 1 lần):
  *       id, time, water_level_mm, rise_rate_mm_min, rain_mm, tide_m,
  *       predicted_water_level_mm, model_version (+ model khi vừa bật máy / vừa nhận công thức mới)
@@ -48,12 +52,13 @@ export const nodeMessageSchema = z.object({
   flood_depth_cm: optionalNumber(-20, 500), // kiểu cũ, cm
 
   // --- bản 3.0: tốc độ dâng + dự báo trạm tự tính ---
-  rise_rate_mm_min: optionalNumber(-1000, 1000), // (mực nước bây giờ − 5 phút trước) ÷ 5, mm/phút; âm = nước đang rút
+  rise_rate_mm_min: optionalNumber(-1000, 1000), // bản 3.0 (cũ): (mực nước bây giờ − 5 phút trước) ÷ 5, mm/phút
+  drain_mm_5min: optionalAnyNumber, // bản 3.1: V = tốc độ thoát nước, mm/5 phút — trạm tự tính, không giới hạn khoảng
   predicted_water_level_mm: optionalNumber(-200, 5000), // độ ngập trạm dự báo sau 5 phút, mm
   model_version: optionalInteger(1, 1_000_000), // trạm đang dự báo bằng phiên bản công thức nào
 
   // --- mưa (bắt buộc ít nhất 1 trong 4) ---
-  rain_mm: optionalNumber(0, 100_000), // lượng mưa (mm)
+  rain_mm: optionalAnyNumber, // lượng mưa (mm); bản 3.1 = mưa trong 5 phút — không giới hạn khoảng
   rain_rate_mm_s: optionalNumber(0, 1), // cường độ mưa (mm/giây) — 1 mm/s đã là 3600 mm/giờ
   rain_rate_mm_h: optionalNumber(0, 3600), // cường độ mưa (mm/giờ)
   rain_mm_1h: optionalNumber(0, 500), // kiểu cũ: tổng mưa 60 phút gần nhất (mm)

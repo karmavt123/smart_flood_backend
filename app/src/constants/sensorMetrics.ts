@@ -7,8 +7,8 @@ import type { SensorReading } from '@/types/SensorReading';
  */
 export const sensorMetrics = [
   { key: 'waterLevelCm', label: 'Độ ngập', unit: 'cm', digits: 1, inCard: false },
-  { key: 'riseRateMmMin', label: 'Tốc độ dâng', unit: 'mm/phút', digits: 1, inCard: true },
-  { key: 'rainMm', label: 'Lượng mưa', unit: 'mm', digits: 1, inCard: true },
+  { key: 'drainMm5min', label: 'Thoát nước', unit: 'mm/5 phút', digits: 1, inCard: true },
+  { key: 'rainMm', label: 'Mưa (5 phút)', unit: 'mm', digits: 1, inCard: true },
   { key: 'rainRateMmH', label: 'Cường độ mưa', unit: 'mm/h', digits: 1, inCard: true },
   { key: 'rainMm1h', label: 'Mưa 1 giờ', unit: 'mm', digits: 1, inCard: true },
   { key: 'tideM', label: 'Thủy triều', unit: 'm', digits: 2, inCard: true },
@@ -16,7 +16,7 @@ export const sensorMetrics = [
   { key: 'humidityPct', label: 'Độ ẩm', unit: '%', digits: 0, inCard: true },
   { key: 'lightLux', label: 'Ánh sáng', unit: 'lx', digits: 0, inCard: true },
   { key: 'batteryPct', label: 'Pin node', unit: '%', digits: 0, inCard: true },
-  { key: 'predictedDepthCm', label: 'Dự đoán', unit: 'cm', digits: 1, inCard: false },
+  { key: 'predictedDepthCm', label: 'Sau 5 phút (dự báo)', unit: 'cm', digits: 1, inCard: false },
 ] as const satisfies readonly {
   key: keyof SensorReading;
   label: string;

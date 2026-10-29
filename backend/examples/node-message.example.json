@@ -1,11 +1,11 @@
 {
   "id": "A01",
-  "date": "2026-10-28",
+  "date": "2026-10-29",
   "time": "14:05:30",
   "water_level_mm": 125,
-  "rise_rate_mm_min": 2.4,
-  "rain_mm": 12.5,
+  "predicted_water_level_mm": 131,
+  "drain_mm_5min": 6.5,
+  "rain_mm": 2.5,
   "tide_m": 1.35,
-  "predicted_water_level_mm": 137,
   "model_version": 2
 }

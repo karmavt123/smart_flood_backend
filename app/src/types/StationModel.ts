@@ -1,10 +1,10 @@
 /**
- * MỘT PHIÊN BẢN CÔNG THỨC DỰ ĐOÁN của trạm (hồi quy tuyến tính, bản 3.0).
+ * MỘT PHIÊN BẢN CÔNG THỨC DỰ ĐOÁN của trạm (hồi quy tuyến tính, bản 3.1).
  * Máy chủ học lại mỗi ngày từ dữ liệu lúc đường ngập của CHÍNH trạm đó, rồi gửi hệ số mới xuống trạm
  * → mỗi trạm dần có công thức riêng, hợp với địa hình nơi đặt trạm.
  *
  *   Ĥ(t + 5 phút) = a0 + a1·H + a2·V + a3·R + a4·S        (Ĥ tính bằng mm)
- *   H = độ ngập hiện tại (mm), V = tốc độ dâng (mm/phút), R = lượng mưa (mm), S = thủy triều (m)
+ *   H = độ ngập hiện tại (mm), V = tốc độ thoát nước (mm/5 phút), R = lượng mưa trong 5 phút (mm), S = thủy triều (m)
  */
 export interface StationModel {
   version: number;

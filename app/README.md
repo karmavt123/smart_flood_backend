@@ -21,6 +21,7 @@ Trạm đo ngập ──Wi-Fi + MQTT──▶ Backend SmartFlood ──API + Soc
 1. [App có gì](#1-app-có-gì)
 2. [Cài đặt và chạy app từng bước](#2-cài-đặt-và-chạy-app-từng-bước)
    - [Không có điện thoại: chạy trên laptop bằng trình duyệt](#không-có-điện-thoại-chạy-trên-laptop-bằng-trình-duyệt)
+   - [Cài app lên Android bằng file APK (không cần laptop)](#cài-app-lên-android-bằng-file-apk-không-cần-laptop)
 3. [Chế độ DEMO (khi thuyết trình)](#3-chế-độ-demo-khi-thuyết-trình)
 4. [Cây thư mục](#4-cây-thư-mục)
 5. [Dữ liệu chạy trong app như thế nào](#5-dữ-liệu-chạy-trong-app-như-thế-nào)
@@ -391,6 +392,29 @@ App chạy được ngay trên laptop bằng **Chrome / Edge**, có đủ **bả
 - Mở sẵn app **trước khi lên trình bày**, để lỡ mạng chậm thì cũng không phải ngồi chờ.
 - **DEMO trên laptop:** bật DEMO như **mục 3**, nhưng chạy `npx expo start --web --clear` thay cho `npx expo start --clear`.
 
+
+### Cài app lên Android bằng file APK (không cần laptop)
+
+File APK là app cài thẳng vào điện thoại Android, **không cần Expo Go, không cần laptop bật**: app lấy dữ liệu trực tiếp từ máy chủ `https://flood.agentwf.xyz` (chạy 24/7). Ai trong nhóm cũng cài được, và đây là cách nên dùng khi đi thi.
+
+**Bản đồ trên Android dùng OpenStreetMap** (Leaflet chạy trong WebView, file `src/components/map/StationMap.android.tsx`), không phải Google Maps → **không cần Google Maps API key**. iPhone vẫn dùng bản đồ của Apple (`StationMap.tsx`), trình duyệt dùng `StationMap.web.tsx`.
+
+**Tạo file APK** (dịch vụ EAS Build của Expo build trên mây, miễn phí, máy mình không cần cài Android SDK):
+
+```bash
+cd app
+npm install                       # lần đầu sau khi kéo code mới (có thêm thư viện react-native-webview)
+npm install -g eas-cli            # cài công cụ EAS (1 lần)
+eas login                         # đăng nhập tài khoản Expo
+eas build -p android --profile apk
+```
+
+- Lần đầu EAS hỏi tạo project trên Expo → `Y`; hỏi tạo khóa ký app (keystore) → `Y` (EAS tự giữ khóa).
+- Đợi khoảng 10–20 phút (tài khoản miễn phí có thể phải xếp hàng). Xong sẽ có **link tải APK + mã QR**.
+- Trên điện thoại Android: mở link → tải file `.apk` → mở file → cho phép **"Cài ứng dụng không rõ nguồn gốc"** → Cài đặt.
+- Địa chỉ máy chủ ghi sẵn trong `eas.json` (mục `env`), **không lấy từ `.env.local`**. Đổi máy chủ thì sửa `eas.json` rồi build lại.
+- `--profile apk-demo` = bản APK mở lên là **chế độ DEMO** (dữ liệu mẫu, không cần máy chủ) — cài sẵn 1 bản phòng khi hội trường mất mạng. 2 bản cùng tên gói nên cài bản sau sẽ đè bản trước: muốn có cả 2 thì cài bản thật, khi cần mới cài đè bản demo.
+- Sửa code app xong muốn điện thoại có bản mới thì build lại. Tăng `versionCode` trong `app.json` (vd 1 → 2) để Android cho cài đè.
 
 ---
 

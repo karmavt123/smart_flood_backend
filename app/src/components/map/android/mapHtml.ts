@@ -24,10 +24,31 @@ html,body,#map{margin:0;padding:0;width:100%;height:100%;background:#E5E7EB;}
 (function () {
   function send(msg) { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg)); }
   var map = L.map('map', { zoomControl: false, zoomSnap: 0.25, tap: false }).setView(${JSON.stringify(center)}, 13);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  // NỀN BẢN ĐỒ: thử lần lượt từng nguồn. Nguồn nào tải lỗi liên tục (bị chặn / mạng lỗi) thì tự đổi sang nguồn kế tiếp.
+  // Đã thử trên điện thoại thật (30/10/2026): OpenStreetMap chặn (nền xám), CARTO đòi API key (hiện chữ "API KEY REQUIRED").
+  // → dùng bản đồ đường phố của Esri (không cần key), OpenStreetMap để dự phòng.
+  var TILE_SOURCES = [
+    { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', subdomains: 'abc', attribution: 'Bản đồ &copy; Esri' },
+    { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', subdomains: 'abc', attribution: '&copy; OpenStreetMap' }
+  ];
+  var tileIndex = 0, tileLayer = null, tileErrors = 0, tileLoads = 0;
+  function useTileSource(i) {
+    if (tileLayer) map.removeLayer(tileLayer);
+    tileIndex = i; tileErrors = 0; tileLoads = 0;
+    var src = TILE_SOURCES[i];
+    tileLayer = L.tileLayer(src.url, { maxZoom: 19, subdomains: src.subdomains, attribution: src.attribution, crossOrigin: false });
+    tileLayer.on('tileload', function () { tileLoads++; });
+    tileLayer.on('tileerror', function (e) {
+      tileErrors++;
+      if (tileErrors === 1) send({ type: 'log', text: 'Lỗi tải nền bản đồ (' + src.url.split('/')[2] + '): ' + (e && e.tile ? e.tile.src : '') });
+      // Chưa tải được ô nào mà đã lỗi 6 ô → nguồn này hỏng, đổi nguồn.
+      if (tileLoads === 0 && tileErrors >= 6 && tileIndex + 1 < TILE_SOURCES.length) useTileSource(tileIndex + 1);
+      else if (tileLoads === 0 && tileErrors >= 6) send({ type: 'log', text: 'Không tải được nền bản đồ từ nguồn nào' });
+    });
+    tileLayer.addTo(map);
+    tileLayer.bringToBack();
+  }
+  useTileSource(0);
   var layer = L.layerGroup().addTo(map);
 
   // Chạm nhanh vào chỗ trống → "press". Bấm vào nhãn trạm thì Leaflet không báo click bản đồ (nhãn tự báo "marker").

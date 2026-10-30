@@ -78,7 +78,7 @@ export function StationMap(props: StationMapProps) {
   }, []);
 
   const onMessage = (event: WebViewMessageEvent) => {
-    let msg: { type?: string; id?: string; latitude?: number; longitude?: number };
+    let msg: { type?: string; id?: string; latitude?: number; longitude?: number; text?: string };
     try {
       msg = JSON.parse(event.nativeEvent.data);
     } catch {
@@ -91,6 +91,7 @@ export function StationMap(props: StationMapProps) {
       current.onMapReady();
     } else if (msg.type === 'press') current.onMapPress();
     else if (msg.type === 'marker' && msg.id) current.onSelectStation(msg.id);
+    else if (msg.type === 'log' && msg.text) console.warn(`[map] ${msg.text}`);
     else if (msg.type === 'longpress' && typeof msg.latitude === 'number' && typeof msg.longitude === 'number') {
       current.onLongPress({ latitude: msg.latitude, longitude: msg.longitude });
     }
@@ -105,6 +106,10 @@ export function StationMap(props: StationMapProps) {
         originWhitelist={['*']}
         onMessage={onMessage}
         javaScriptEnabled
+        // Tên app trong User-Agent: máy chủ nền bản đồ chặn yêu cầu không rõ là ứng dụng nào.
+        applicationNameForUserAgent="SmartFlood/1.0 (+https://flood.agentwf.xyz)"
+        // Cho phép soi lỗi bản đồ bằng chrome://inspect trên laptop (cắm adb).
+        webviewDebuggingEnabled
         domStorageEnabled
         setSupportMultipleWindows={false}
         overScrollMode="never"
